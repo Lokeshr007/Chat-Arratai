@@ -1,0 +1,31 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap');
+@import "tailwindcss";
+
+*{
+  font-family: "Outfit", sans-serif;
+}
+
+/* Hide default scrollbar but allow scrolling */
+.hide-scrollbar {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: rgba(107, 70, 193, 0.6) transparent;
+}
+
+/* Webkit browsers */
+.hide-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.hide-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.hide-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(107, 70, 193, 0.6);
+  border-radius: 3px;
+}
+
+.hide-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(107, 70, 193, 0.8);
+}
+
