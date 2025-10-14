@@ -1,372 +1,1746 @@
-import React, { useContext, useState, useEffect, useRef } from "react";
-import assets from "../assets/assets";
-import { useNavigate } from "react-router-dom";
+import React, { useContext, useState, useEffect, useRef, useCallback } from "react";
+import { GlobalStyles } from "@mui/material";
+
+import {
+  Box,
+  Paper,
+  Typography,
+  TextField,
+  IconButton,
+  Avatar,
+  Badge,
+  Chip,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  LinearProgress,
+  Tooltip,
+  Fab,
+  useTheme,
+  useMediaQuery,
+  AppBar,
+  Toolbar,
+  Divider,
+  List,
+  ListItem,
+  ListItemAvatar,
+  CircularProgress,
+  Alert,
+  Snackbar,
+  Slide,
+  alpha,
+  styled,
+  Fade,
+  Zoom,
+  Collapse,
+  Card,
+  CardMedia,
+} from "@mui/material";
+import {
+  Send as SendIcon,
+  AttachFile as AttachFileIcon,
+  EmojiEmotions as EmojiIcon,
+  Mic as MicIcon,
+  MoreVert as MoreVertIcon,
+  Clear as ClearIcon,
+  Reply as ReplyIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  Forward as ForwardIcon,
+  CheckCircle as CheckCircleIcon,
+  Schedule as ScheduleIcon,
+  Error as ErrorIcon,
+  Person as PersonIcon,
+  Favorite as FavoriteIcon,
+  PlayArrow as PlayArrowIcon,
+  Pause as PauseIcon,
+  ArrowBack as ArrowBackIcon,
+  PhotoCamera as PhotoCameraIcon,
+  Videocam as VideocamIcon,
+  Audiotrack as AudiotrackIcon,
+  InsertDriveFile as InsertDriveFileIcon,
+  Download as DownloadIcon,
+  LocationOn as LocationIcon,
+  ContactPhone as ContactIcon,
+  Poll as PollIcon,
+  Psychology as PsychologyIcon,
+  Celebration as CelebrationIcon,
+  SelectAll as SelectAllIcon,
+  Deselect as DeselectIcon,
+  ClearAll as ClearAllIcon,
+  MoreHoriz as MoreHorizIcon,
+  Archive as ArchiveIcon,
+  Report as ReportIcon,
+  VolumeOff as VolumeOffIcon,
+  Close as CloseIcon,
+  Label as LabelIcon,
+  SmartToy as AIIcon,
+  Gif as GifIcon,
+  StickyNote2 as StickerIcon,
+  Code as CodeIcon,
+  Translate as TranslateIcon,
+  AutoAwesome as AutoAwesomeIcon,
+  Visibility as VisibilityIcon,
+  VisibilityOff as VisibilityOffIcon,
+  Link as LinkIcon,
+  ContentCopy as CopyIcon,
+  Search as SearchIcon,
+  FilterList as FilterIcon,
+  Sort as SortIcon,
+  SmsFailed as SmsFailedIcon,
+} from "@mui/icons-material";
+import { Picker } from 'emoji-mart';
+import 'emoji-mart/css/emoji-mart.css';
+import { toast } from "react-hot-toast";
 import { ChatContext } from "../../context/ChatContext";
 import { AuthContext } from "../../context/AuthContext";
-import toast from "react-hot-toast";
-import { formatMessageDate, formatChatDate } from "../lib/utils";
-import { 
-  FaCheckDouble, 
-  FaPaperPlane, 
-  FaTrashAlt, 
-  FaShare, 
-  FaSmile, 
-  FaMicrophone, 
-  FaCopy, 
-  FaEllipsisV,
-  FaUsers,
-  FaUserPlus,
-  FaUserMinus,
-  FaShieldAlt,
-  FaBellSlash,
-  FaReply,
-  FaEdit,
-  FaRegHeart
-} from "react-icons/fa";
-import { MdClear, MdClose, MdAttachFile } from "react-icons/md";
-import { FiArrowLeft, FiDownload } from "react-icons/fi";
-import { IoClose, IoSend } from "react-icons/io5";
-import EmojiPicker from "emoji-picker-react";
 
-const ChatContainer = ({ onOpenProfile }) => {
-  const navigate = useNavigate();
+// Modern gradient colors with glass morphism
+const MODERN_COLORS = {
+  primary: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+  secondary: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+  success: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+  warning: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+  error: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+  dark: 'linear-gradient(135deg, #0f0f1a 0%, #1c1c2e 100%)',
+  messageOwn: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+  messageOther: 'linear-gradient(135deg, #2d2d44 0%, #3a3a5a 100%)',
+  glass: 'rgba(255, 255, 255, 0.08)',
+  glassDark: 'rgba(15, 15, 26, 0.85)',
+  ai: 'linear-gradient(135deg, #ff6b6b 0%, #feca57 100%)',
+};
+
+// Styled components for modern design
+const GlassPaper = styled(Paper)(({ theme }) => ({
+  background: MODERN_COLORS.glass,
+  backdropFilter: 'blur(20px)',
+  border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
+  boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37)',
+}));
+
+const GradientAppBar = styled(AppBar)(({ theme }) => ({
+  background: MODERN_COLORS.glassDark,
+  backdropFilter: 'blur(20px)',
+  borderBottom: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
+  boxShadow: '0 4px 20px 0 rgba(0, 0, 0, 0.2)',
+}));
+
+const MessageBubblePaper = styled(Paper, {
+  shouldForwardProp: (prop) => prop !== 'isOwnMessage' && prop !== 'isSelected' && prop !== 'isPinned',
+})(
+  ({ theme, isOwnMessage, isSelected, isPinned }) => ({
+    background: isOwnMessage ? MODERN_COLORS.messageOwn : MODERN_COLORS.messageOther,
+    backdropFilter: 'blur(10px)',
+    border: `1px solid ${alpha(theme.palette.common.white, isOwnMessage ? 0.2 : 0.1)}`,
+    boxShadow: isSelected 
+      ? '0 0 0 2px rgba(102, 126, 234, 0.6), 0 4px 20px rgba(0, 0, 0, 0.15)'
+      : isPinned
+      ? '0 0 0 2px rgba(255, 193, 7, 0.6), 0 4px 20px rgba(255, 193, 7, 0.1)'
+      : '0 4px 20px rgba(0, 0, 0, 0.1)',
+    borderRadius: '20px',
+    borderBottomRightRadius: isOwnMessage ? '6px' : '20px',
+    borderBottomLeftRadius: isOwnMessage ? '20px' : '6px',
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    position: 'relative',
+    overflow: 'hidden',
+    '&::before': {
+      content: '""',
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      height: '1px',
+      background: `linear-gradient(90deg, transparent, ${alpha(theme.palette.common.white, 0.2)}, transparent)`,
+    },
+  })
+);
+
+const FloatingActionButton = styled(Fab)(({ theme }) => ({
+  background: MODERN_COLORS.primary,
+  backdropFilter: 'blur(10px)',
+  border: `1px solid ${alpha(theme.palette.common.white, 0.2)}`,
+  boxShadow: '0 8px 32px rgba(102, 126, 234, 0.3)',
+  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+  '&:hover': {
+    background: MODERN_COLORS.secondary,
+    transform: 'translateY(-2px) scale(1.05)',
+    boxShadow: '0 12px 40px rgba(102, 126, 234, 0.4)',
+  },
+  '&:active': {
+    transform: 'translateY(0) scale(0.95)',
+  },
+}));
+
+const ModernTextField = styled(TextField)(({ theme }) => ({
+  '& .MuiOutlinedInput-root': {
+    background: MODERN_COLORS.glass,
+    backdropFilter: 'blur(10px)',
+    border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
+    borderRadius: '25px',
+    color: theme.palette.common.white,
+    transition: 'all 0.3s ease',
+    '&:hover': {
+      background: alpha(theme.palette.common.white, 0.12),
+      border: `1px solid ${alpha(theme.palette.common.white, 0.2)}`,
+    },
+    '&.Mui-focused': {
+      background: alpha(theme.palette.common.white, 0.15),
+      border: `1px solid ${alpha(theme.palette.primary.main, 0.6)}`,
+      boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.2)}`,
+    },
+    '& fieldset': {
+      border: 'none',
+    },
+    '&.Mui-disabled': {
+      background: alpha(theme.palette.common.white, 0.05),
+      color: alpha(theme.palette.common.white, 0.3),
+    },
+  },
+  '& .MuiOutlinedInput-input': {
+    padding: '14px 20px',
+    color: theme.palette.common.white,
+    '&::placeholder': {
+      color: alpha(theme.palette.common.white, 0.5),
+    },
+    '&:disabled': {
+      color: alpha(theme.palette.common.white, 0.3),
+    },
+  },
+}));
+
+const AnimatedIconButton = styled(IconButton)(({ theme }) => ({
+  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+  backdropFilter: 'blur(10px)',
+  border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
+  '&:hover': {
+    transform: 'scale(1.1) translateY(-2px)',
+    background: alpha(theme.palette.common.white, 0.15),
+    border: `1px solid ${alpha(theme.palette.common.white, 0.2)}`,
+    boxShadow: '0 6px 20px rgba(0, 0, 0, 0.15)',
+  },
+  '&:active': {
+    transform: 'scale(0.95) translateY(0)',
+  },
+}));
+
+// Enhanced Message Status Component
+const MessageStatus = ({ message, authUser }) => {
+  if (message.senderId?._id !== authUser._id && message.senderId !== authUser._id) return null;
+
+  const status = message.status || (message.seen ? 'seen' : message.delivered ? 'delivered' : 'sending');
+
+  const StatusIcon = () => {
+    switch (status) {
+      case 'sending':
+        return (
+          <Tooltip title="Sending" arrow>
+            <ScheduleIcon sx={{ fontSize: 16, color: alpha('#fff', 0.6) }} />
+          </Tooltip>
+        );
+      case 'delivered':
+        return (
+          <Tooltip title="Delivered" arrow>
+            <CheckCircleIcon sx={{ fontSize: 16, color: 'success.main' }} />
+          </Tooltip>
+        );
+      case 'seen':
+        return (
+          <Tooltip title="Seen" arrow>
+            <CheckCircleIcon sx={{ fontSize: 16, color: 'primary.main' }} />
+          </Tooltip>
+        );
+      case 'failed':
+        return (
+          <Tooltip title="Failed to send" arrow>
+            <ErrorIcon sx={{ fontSize: 16, color: 'error.main' }} />
+          </Tooltip>
+        );
+      default:
+        return (
+          <Tooltip title="Sent" arrow>
+            <CheckCircleIcon sx={{ fontSize: 16, color: alpha('#fff', 0.6) }} />
+          </Tooltip>
+        );
+    }
+  };
+
+  return <StatusIcon />;
+};
+
+// Enhanced Selection Actions Bar Component
+const SelectionActionsBar = ({ 
+  selectedCount, 
+  clearSelection, 
+  deleteSelected, 
+  forwardSelected, 
+  downloadSelected,
+  replyToSelected,
+  pinSelected,
+  copySelected
+}) => {
+  if (!selectedCount || selectedCount === 0) return null;
+
+  return (
+    <Slide direction="up" in={true} mountOnEnter unmountOnExit>
+      <GlassPaper
+        elevation={8}
+        sx={{
+          position: 'fixed',
+          bottom: 100,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          p: 2,
+          borderRadius: '20px',
+          color: 'white',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 2,
+          zIndex: 1000,
+          minWidth: 400,
+          border: `1px solid ${alpha('#fff', 0.2)}`,
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+          animation: 'float 3s ease-in-out infinite',
+          '@keyframes float': {
+            '0%, 100%': { transform: 'translateX(-50%) translateY(0px)' },
+            '50%': { transform: 'translateX(-50%) translateY(-5px)' },
+          },
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box
+            sx={{
+              width: 32,
+              height: 32,
+              borderRadius: '50%',
+              background: MODERN_COLORS.primary,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 'bold',
+              fontSize: '0.8rem',
+            }}
+          >
+            {selectedCount}
+          </Box>
+          <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '0.9rem' }}>
+            message{selectedCount > 1 ? 's' : ''} selected
+          </Typography>
+        </Box>
+        
+        <Divider orientation="vertical" flexItem sx={{ backgroundColor: alpha('#fff', 0.3), height: 24 }} />
+        
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Tooltip title="Clear Selection" arrow>
+            <AnimatedIconButton 
+              size="small" 
+              onClick={clearSelection}
+              sx={{ color: 'white' }}
+            >
+              <DeselectIcon />
+            </AnimatedIconButton>
+          </Tooltip>
+          
+          <Tooltip title="Copy Text" arrow>
+            <AnimatedIconButton 
+              size="small" 
+              onClick={copySelected}
+              sx={{ color: 'white' }}
+            >
+              <CopyIcon />
+            </AnimatedIconButton>
+          </Tooltip>
+
+          <Tooltip title="Pin Message" arrow>
+            <AnimatedIconButton 
+              size="small" 
+              onClick={pinSelected}
+              sx={{ color: 'warning.main' }}
+            >
+              <LabelIcon />
+            </AnimatedIconButton>
+          </Tooltip>
+          
+          <Tooltip title="Delete Selected" arrow>
+            <AnimatedIconButton 
+              size="small" 
+              onClick={deleteSelected}
+              sx={{ color: 'error.main' }}
+            >
+              <DeleteIcon />
+            </AnimatedIconButton>
+          </Tooltip>
+          
+          <Tooltip title="Forward Selected" arrow>
+            <AnimatedIconButton 
+              size="small" 
+              onClick={forwardSelected}
+              sx={{ color: 'white' }}
+            >
+              <ForwardIcon />
+            </AnimatedIconButton>
+          </Tooltip>
+          
+          <Tooltip title="Download Selected" arrow>
+            <AnimatedIconButton 
+              size="small" 
+              onClick={downloadSelected}
+              sx={{ color: 'white' }}
+            >
+              <DownloadIcon />
+            </AnimatedIconButton>
+          </Tooltip>
+
+          {selectedCount === 1 && (
+            <Tooltip title="Reply to Selected" arrow>
+              <AnimatedIconButton 
+                size="small" 
+                onClick={replyToSelected}
+                sx={{ color: 'white' }}
+              >
+                <ReplyIcon />
+              </AnimatedIconButton>
+            </Tooltip>
+          )}
+        </Box>
+      </GlassPaper>
+    </Slide>
+  );
+};
+
+// AI Assistant Component
+const AIAssistant = ({ onAIAction, theme }) => {
+  const [aiSuggestions, setAiSuggestions] = useState([
+    "Help me improve this message",
+    "Translate to Spanish",
+    "Make it more professional",
+    "Shorten this message",
+    "Add emojis to make it friendly"
+  ]);
+
+  return (
+    <Fade in={true}>
+      <GlassPaper
+        sx={{
+          m: 2,
+          mb: 1,
+          p: 2,
+          background: MODERN_COLORS.ai,
+          borderRadius: '16px',
+          border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+          <AIIcon sx={{ color: 'white' }} />
+          <Typography variant="body2" fontWeight="bold" color="white">
+            AI Assistant
+          </Typography>
+        </Box>
+        <Typography variant="caption" color="white" sx={{ opacity: 0.9, mb: 1.5, display: 'block' }}>
+          Need help with your message?
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+          {aiSuggestions.map((suggestion, index) => (
+            <Chip
+              key={index}
+              label={suggestion}
+              size="small"
+              onClick={() => onAIAction(suggestion)}
+              sx={{
+                background: alpha(theme.palette.common.white, 0.2),
+                color: 'white',
+                fontSize: '0.7rem',
+                height: '24px',
+                '&:hover': {
+                  background: alpha(theme.palette.common.white, 0.3),
+                },
+              }}
+            />
+          ))}
+        </Box>
+      </GlassPaper>
+    </Fade>
+  );
+};
+
+// Enhanced Message Bubble Component
+const MessageBubble = React.memo(({ 
+  message, 
+  isOwnMessage, 
+  isGroup,
+  selectedMessages,
+  isSelectMode,
+  toggleMessageSelection,
+  reactToMessage,
+  removeReaction,
+  getFileType,
+  getFileIcon,
+  downloadFile,
+  playingAudio,
+  handlePlayAudio,
+  authUser,
+  theme,
+  onMessageMenuOpen,
+  onTranslateMessage,
+  onPinMessage,
+  isPinned
+}) => {
+  const [showReactions, setShowReactions] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const [reactionsPanelOpen, setReactionsPanelOpen] = useState(false);
+  const [translatedText, setTranslatedText] = useState(null);
+  const [isTranslating, setIsTranslating] = useState(false);
+  const isSelected = selectedMessages.has(message._id);
+  
+  // Close reactions panel when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (reactionsPanelOpen) {
+        setReactionsPanelOpen(false);
+        setShowReactions(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [reactionsPanelOpen]);
+
+  const handleReactionClick = (emoji) => {
+    if (message.reactions?.some(r => r.emoji === emoji && r.users?.includes(authUser._id))) {
+      removeReaction(message._id, emoji);
+    } else {
+      reactToMessage(message._id, emoji);
+    }
+    setShowReactions(false);
+    setReactionsPanelOpen(false);
+  };
+
+  const handleTranslate = async () => {
+    if (!message.text || translatedText) {
+      setTranslatedText(null);
+      return;
+    }
+
+    setIsTranslating(true);
+    try {
+      // Simulate translation API call
+      setTimeout(() => {
+        setTranslatedText(`[Translated] ${message.text}`);
+        setIsTranslating(false);
+      }, 1000);
+    } catch (error) {
+      console.error("Translation failed:", error);
+      setIsTranslating(false);
+    }
+  };
+
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        justifyContent: isOwnMessage ? 'flex-end' : 'flex-start',
+        mb: 2.5,
+        px: 2,
+        position: 'relative',
+        transition: 'all 0.3s ease',
+      }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      {/* Selection Checkbox */}
+      {isSelectMode && (
+        <Box
+          sx={{
+            position: 'absolute',
+            left: isOwnMessage ? 'auto' : 8,
+            right: isOwnMessage ? 8 : 'auto',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            zIndex: 2,
+            opacity: isHovered || isSelected ? 1 : 0,
+            transition: 'opacity 0.3s ease',
+          }}
+        >
+          <AnimatedIconButton
+            size="small"
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleMessageSelection(message._id);
+            }}
+            sx={{
+              color: 'white',
+              background: isSelected ? MODERN_COLORS.primary : MODERN_COLORS.glassDark,
+              backdropFilter: 'blur(10px)',
+              borderRadius: '50%',
+              border: `1px solid ${alpha(theme.palette.common.white, 0.2)}`,
+              '&:hover': {
+                background: isSelected ? MODERN_COLORS.secondary : alpha(theme.palette.common.white, 0.1),
+              },
+            }}
+          >
+            {isSelected ? <CheckCircleIcon sx={{ fontSize: 16 }} /> : <CheckCircleIcon sx={{ fontSize: 16, opacity: 0.5 }} />}
+          </AnimatedIconButton>
+        </Box>
+      )}
+
+      {/* Pin Indicator */}
+      {isPinned && (
+        <Box
+          sx={{
+            position: 'absolute',
+            left: isOwnMessage ? 'auto' : -8,
+            right: isOwnMessage ? -8 : 'auto',
+            top: -4,
+            zIndex: 2,
+          }}
+        >
+          <Tooltip title="Pinned Message" arrow>
+            <LabelIcon sx={{ fontSize: 16, color: 'warning.main' }} />
+          </Tooltip>
+        </Box>
+      )}
+
+      <Box sx={{ 
+        maxWidth: '75%', 
+        minWidth: '120px', 
+        position: 'relative',
+        opacity: isSelectMode && !isSelected ? 0.6 : 1,
+        transition: 'all 0.3s ease',
+        transform: isSelectMode && !isSelected ? 'scale(0.98)' : 'scale(1)',
+      }}>
+        {/* Sender name for group chats */}
+        {isGroup && !isOwnMessage && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, ml: 1.5 }}>
+            <Avatar
+              src={message.senderId?.profilePic}
+              sx={{ 
+                width: 20, 
+                height: 20,
+                border: `2px solid ${alpha(theme.palette.primary.main, 0.3)}`,
+              }}
+            >
+              {message.senderId?.fullName?.charAt(0)}
+            </Avatar>
+            <Typography
+              variant="caption"
+              sx={{
+                fontWeight: 600,
+                color: 'primary.light',
+                fontSize: '0.7rem',
+                textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+              }}
+            >
+              {message.senderId?.fullName || message.senderName}
+            </Typography>
+          </Box>
+        )}
+
+        {/* Reply context */}
+        {message.replyTo && (
+          <GlassPaper
+            sx={{
+              p: 1.5,
+              mb: 1.5,
+              background: alpha(theme.palette.primary.main, 0.1),
+              borderLeft: `3px solid ${theme.palette.primary.main}`,
+              cursor: 'pointer',
+              borderRadius: '12px',
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                background: alpha(theme.palette.primary.main, 0.15),
+                transform: 'translateX(4px)',
+              },
+            }}
+            onClick={() => {
+              const repliedElement = document.getElementById(`message-${message.replyTo._id}`);
+              if (repliedElement) {
+                repliedElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                repliedElement.style.background = alpha(theme.palette.warning.main, 0.3);
+                repliedElement.style.transition = 'background 0.3s ease';
+                setTimeout(() => {
+                  repliedElement.style.background = '';
+                }, 2000);
+              }
+            }}
+          >
+            <Typography variant="caption" color="primary" fontWeight="bold" fontSize="0.7rem">
+              Replying to {message.replyTo.senderId?._id === authUser._id ? 'yourself' : message.replyTo.senderId?.fullName}
+            </Typography>
+            <Typography variant="body2" noWrap sx={{ color: 'text.secondary', fontSize: '0.8rem', mt: 0.5 }}>
+              {message.replyTo.text || 'Media message'}
+            </Typography>
+          </GlassPaper>
+        )}
+
+        <Tooltip 
+          title={new Date(message.createdAt).toLocaleString()}
+          placement={isOwnMessage ? "left" : "right"}
+          arrow
+        >
+          <MessageBubblePaper
+            id={`message-${message._id}`}
+            elevation={0}
+            isOwnMessage={isOwnMessage}
+            isSelected={isSelected}
+            isPinned={isPinned}
+            sx={{
+              p: 2,
+              color: isOwnMessage ? 'white' : 'text.primary',
+              cursor: isSelectMode ? 'pointer' : 'default',
+              '&:hover': {
+                transform: isSelectMode ? 'scale(1.02)' : 'none',
+                '& .message-actions': {
+                  opacity: 1,
+                  transform: 'translateY(0)',
+                },
+              },
+            }}
+            onClick={(e) => {
+              if (isSelectMode) {
+                e.stopPropagation();
+                toggleMessageSelection(message._id);
+              }
+            }}
+          >
+            {/* Message content */}
+            {message.text && (
+              <Box>
+                <Typography variant="body1" sx={{ 
+                  wordBreak: 'break-word', 
+                  whiteSpace: 'pre-wrap',
+                  fontSize: '0.95rem',
+                  lineHeight: 1.5,
+                  textShadow: isOwnMessage ? '0 1px 2px rgba(0,0,0,0.2)' : 'none',
+                }}>
+                  {message.text}
+                </Typography>
+                
+                {/* Translation */}
+                {translatedText && (
+                  <Fade in={true}>
+                    <Box
+                      sx={{
+                        mt: 1,
+                        p: 1.5,
+                        background: alpha(theme.palette.common.white, 0.1),
+                        borderRadius: '8px',
+                        borderLeft: `3px solid ${theme.palette.info.main}`,
+                      }}
+                    >
+                      <Typography variant="body2" sx={{ 
+                        fontSize: '0.85rem',
+                        fontStyle: 'italic',
+                        color: alpha(theme.palette.common.white, 0.8),
+                        lineHeight: 1.4,
+                      }}>
+                        {translatedText}
+                      </Typography>
+                    </Box>
+                  </Fade>
+                )}
+              </Box>
+            )}
+
+            {/* Media content */}
+            {message.media?.map((media, index) => (
+              <Box key={index} sx={{ mt: 1.5 }}>
+                {getFileType(media) === 'image' ? (
+                  <Card
+                    sx={{
+                      position: 'relative',
+                      overflow: 'hidden',
+                      borderRadius: '16px',
+                      cursor: 'pointer',
+                      transition: 'all 0.3s ease',
+                      maxWidth: 300,
+                      '&:hover': {
+                        transform: 'scale(1.02)',
+                        boxShadow: '0 8px 25px rgba(0,0,0,0.15)',
+                      },
+                    }}
+                  >
+                    <CardMedia
+                      component="img"
+                      image={media}
+                      alt="Shared media"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                      }}
+                    />
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        top: 8,
+                        right: 8,
+                        background: alpha(theme.palette.common.black, 0.6),
+                        borderRadius: '50%',
+                        p: 0.5,
+                      }}
+                    >
+                      <PhotoCameraIcon sx={{ fontSize: 16, color: 'white' }} />
+                    </Box>
+                  </Card>
+                ) : getFileType(media) === 'video' ? (
+                  <Box
+                    sx={{
+                      position: 'relative',
+                      overflow: 'hidden',
+                      borderRadius: '16px',
+                      maxWidth: 300,
+                      '&:hover .play-overlay': {
+                        opacity: 1,
+                      },
+                    }}
+                  >
+                    <video
+                      src={media}
+                      controls
+                      style={{
+                        width: '100%',
+                        maxHeight: 300,
+                        borderRadius: '16px',
+                      }}
+                      onError={(e) => {
+                        console.error("Error loading video:", media);
+                      }}
+                    />
+                    <Box
+                      className="play-overlay"
+                      sx={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        background: 'rgba(0,0,0,0.3)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        opacity: 0,
+                        transition: 'opacity 0.3s ease',
+                        borderRadius: '16px',
+                      }}
+                    >
+                      <PlayArrowIcon sx={{ color: 'white', fontSize: 48 }} />
+                    </Box>
+                  </Box>
+                ) : getFileType(media) === 'audio' ? (
+                  <Box sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 2,
+                    background: alpha(theme.palette.common.black, 0.3),
+                    borderRadius: '20px',
+                    p: 2,
+                    border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
+                    maxWidth: 300,
+                  }}>
+                    <AnimatedIconButton
+                      onClick={() => handlePlayAudio(media, message._id)}
+                      color={playingAudio === message._id ? "primary" : "default"}
+                      sx={{
+                        background: playingAudio === message._id ? MODERN_COLORS.primary : MODERN_COLORS.glass,
+                        color: 'white',
+                      }}
+                    >
+                      {playingAudio === message._id ? <PauseIcon /> : <PlayArrowIcon />}
+                    </AnimatedIconButton>
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="body2" sx={{ fontSize: '0.85rem', fontWeight: 500 }}>
+                        Voice message
+                      </Typography>
+                      <LinearProgress 
+                        variant="determinate" 
+                        value={playingAudio === message._id ? 70 : 0} 
+                        sx={{ 
+                          mt: 1, 
+                          height: 4, 
+                          borderRadius: 2,
+                          background: alpha(theme.palette.common.white, 0.2),
+                          '& .MuiLinearProgress-bar': {
+                            background: MODERN_COLORS.primary,
+                          }
+                        }}
+                      />
+                    </Box>
+                    <Typography variant="caption" sx={{ color: alpha(theme.palette.common.white, 0.7) }}>
+                      0:30
+                    </Typography>
+                  </Box>
+                ) : (
+                  <Chip
+                    icon={getFileIcon(media)}
+                    label={media.split('/').pop()}
+                    onClick={() => window.open(media, '_blank')}
+                    onDelete={() => downloadFile(media, media.split('/').pop())}
+                    deleteIcon={<DownloadIcon />}
+                    variant="outlined"
+                    sx={{ 
+                      cursor: 'pointer',
+                      borderRadius: '12px',
+                      background: MODERN_COLORS.glass,
+                      backdropFilter: 'blur(10px)',
+                      border: `1px solid ${alpha(theme.palette.common.white, 0.2)}`,
+                      color: 'white',
+                      '&:hover': {
+                        background: alpha(theme.palette.common.white, 0.15),
+                      },
+                    }}
+                  />
+                )}
+              </Box>
+            ))}
+
+            {/* Message footer */}
+            <Box
+              sx={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                mt: 1.5,
+                gap: 1,
+              }}
+            >
+              <Typography variant="caption" sx={{ 
+                opacity: 0.8,
+                fontSize: '0.7rem',
+                color: isOwnMessage ? alpha(theme.palette.common.white, 0.8) : 'text.secondary',
+                fontWeight: 500,
+              }}>
+                {new Date(message.createdAt).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </Typography>
+              
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                {message.isEdited && (
+                  <Typography variant="caption" sx={{ 
+                    opacity: 0.7, 
+                    fontStyle: 'italic',
+                    fontSize: '0.7rem',
+                    color: isOwnMessage ? alpha(theme.palette.common.white, 0.8) : 'text.secondary'
+                  }}>
+                    edited
+                  </Typography>
+                )}
+                <MessageStatus message={message} authUser={authUser} />
+              </Box>
+            </Box>
+
+            {/* Enhanced Quick reactions */}
+            {showReactions && !isSelectMode && (
+              <Box
+                sx={{
+                  position: 'absolute',
+                  top: -50,
+                  left: isOwnMessage ? 'auto' : 0,
+                  right: isOwnMessage ? 0 : 'auto',
+                  p: 1.5,
+                  display: 'flex',
+                  gap: 0.5,
+                  borderRadius: '25px',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+                  zIndex: 10,
+                  animation: 'slideUp 0.3s ease',
+                  background: MODERN_COLORS.glassDark,
+                  backdropFilter: 'blur(20px)',
+                  border: `1px solid ${alpha(theme.palette.common.white, 0.2)}`,
+                  flexWrap: 'wrap',
+                  width: 'auto',
+                  minWidth: 200,
+                  '@keyframes slideUp': {
+                    '0%': { transform: 'translateY(10px) scale(0.9)', opacity: 0 },
+                    '100%': { transform: 'translateY(0) scale(1)', opacity: 1 },
+                  },
+                }}
+              >
+                {['👍', '❤️', '😂', '😮', '😢', '😠', '🔥', '👏', '🎉', '🤔', '👀', '💯'].map((emoji, index) => (
+                  <AnimatedIconButton
+                    key={index}
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleReactionClick(emoji);
+                    }}
+                    sx={{ 
+                      fontSize: '1.1rem',
+                      width: 32,
+                      height: 32,
+                      '&:hover': {
+                        transform: 'scale(1.4)',
+                        background: alpha(theme.palette.primary.main, 0.2),
+                      }
+                    }}
+                  >
+                    {emoji}
+                  </AnimatedIconButton>
+                ))}
+              </Box>
+            )}
+
+            {/* Enhanced Message actions */}
+            {!isSelectMode && (
+              <Box
+                className="message-actions"
+                sx={{
+                  position: 'absolute',
+                  top: -12,
+                  right: isOwnMessage ? 'auto' : -12,
+                  left: isOwnMessage ? -12 : 'auto',
+                  opacity: isHovered ? 1 : 0,
+                  transform: isHovered ? 'translateY(0)' : 'translateY(10px)',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  display: 'flex',
+                  gap: 0.5,
+                  zIndex: 1,
+                }}
+              >
+                {message.text && !translatedText && (
+                  <Tooltip title="Translate" arrow>
+                    <AnimatedIconButton
+                      size="small"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleTranslate();
+                      }}
+                      disabled={isTranslating}
+                      sx={{
+                        background: MODERN_COLORS.glassDark,
+                        color: 'white',
+                        '&:hover': {
+                          background: MODERN_COLORS.primary,
+                          transform: 'scale(1.1)',
+                        },
+                      }}
+                    >
+                      {isTranslating ? (
+                        <CircularProgress size={16} color="inherit" />
+                      ) : (
+                        <TranslateIcon fontSize="small" />
+                      )}
+                    </AnimatedIconButton>
+                  </Tooltip>
+                )}
+
+                <Tooltip title="Add Reaction" arrow>
+                  <AnimatedIconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowReactions(!showReactions);
+                      setReactionsPanelOpen(!showReactions);
+                    }}
+                    sx={{
+                      background: MODERN_COLORS.glassDark,
+                      color: 'white',
+                      '&:hover': {
+                        background: MODERN_COLORS.primary,
+                        transform: 'scale(1.1)',
+                      },
+                    }}
+                  >
+                    <FavoriteIcon fontSize="small" />
+                  </AnimatedIconButton>
+                </Tooltip>
+                
+                <Tooltip title="More Options" arrow>
+                  <AnimatedIconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onMessageMenuOpen(e, message);
+                    }}
+                    sx={{
+                      background: MODERN_COLORS.glassDark,
+                      color: 'white',
+                      '&:hover': {
+                        background: MODERN_COLORS.primary,
+                        transform: 'scale(1.1)',
+                      },
+                    }}
+                  >
+                    <MoreVertIcon fontSize="small" />
+                  </AnimatedIconButton>
+                </Tooltip>
+              </Box>
+            )}
+          </MessageBubblePaper>
+        </Tooltip>
+
+        {/* Enhanced Reactions Display */}
+        {message.reactions && message.reactions.length > 0 && (
+          <Box sx={{ 
+            display: 'flex', 
+            gap: 0.5, 
+            mt: 1, 
+            flexWrap: 'wrap',
+            justifyContent: isOwnMessage ? 'flex-end' : 'flex-start',
+            animation: 'fadeIn 0.3s ease',
+            maxWidth: '100%',
+            '@keyframes fadeIn': {
+              '0%': { opacity: 0, transform: 'translateY(5px)' },
+              '100%': { opacity: 1, transform: 'translateY(0)' },
+            },
+          }}>
+            {message.reactions.map((reaction, index) => {
+              const hasReacted = reaction.users?.includes(authUser._id);
+              return (
+                <Chip
+                  key={`${reaction.emoji}-${index}`}
+                  label={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <span style={{ fontSize: '0.8rem' }}>{reaction.emoji}</span>
+                      {reaction.count > 1 && (
+                        <Typography variant="caption" sx={{ fontSize: '0.7rem', fontWeight: 600 }}>
+                          {reaction.count}
+                        </Typography>
+                      )}
+                    </Box>
+                  }
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (hasReacted) {
+                      removeReaction(message._id, reaction.emoji);
+                    } else {
+                      reactToMessage(message._id, reaction.emoji);
+                    }
+                  }}
+                  color={hasReacted ? "primary" : "default"}
+                  variant={hasReacted ? "filled" : "outlined"}
+                  sx={{
+                    borderRadius: '16px',
+                    fontSize: '0.7rem',
+                    height: '26px',
+                    background: hasReacted 
+                      ? MODERN_COLORS.primary 
+                      : MODERN_COLORS.glass,
+                    backdropFilter: 'blur(10px)',
+                    border: `1px solid ${alpha(theme.palette.common.white, 0.2)}`,
+                    color: 'white',
+                    transition: 'all 0.3s ease',
+                    cursor: 'pointer',
+                    '&:hover': {
+                      transform: 'scale(1.05)',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                      background: hasReacted 
+                        ? MODERN_COLORS.secondary 
+                        : alpha(theme.palette.common.white, 0.15),
+                    },
+                  }}
+                />
+              );
+            })}
+          </Box>
+        )}
+      </Box>
+    </Box>
+  );
+});
+
+// Main ChatContainer Component
+const ChatContainer = ({ onOpenProfile, onBack }) => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  
   const {
     messages,
     selectedUser,
-    selectedGroup,
     sendMessage,
     sendGroupMessage,
     getMessage,
     setMessages,
-    users,
     deleteMessageById,
-    forwardMessagesToUser,
+    markMessagesAsSeen,
     isTyping,
     sendTypingStatus,
-    markMessagesAsSeen,
-    sendVoiceMessage,
+    canSendMessageToUser,
     reactToMessage,
     removeReaction,
-    reactions,
     editMessage,
-    addMemberToGroup,
-    removeMemberFromGroup,
-    leaveGroup,
-    downloadFile,
-    getFileIcon,
-    getFileType,
     onlineUsers,
-    isGroup
+    isGroup,
+    downloadFile,
+    getFileType,
+    getFileIcon,
+    uploadFile,
+    uploadAudio,
+    friends,
+    getCachedMessages,
+    setCachedMessages,
+    forwardMessagesToUser,
+    clearCachedMessages,
+    pinMessage,
+    unpinMessage,
+    getPinnedMessages,
+    pinnedMessages,
+    clearChatPermanently
   } = useContext(ChatContext);
 
-  const { authUser, socket, api: authAxios } = useContext(AuthContext);
+  const { authUser, socket } = useContext(AuthContext);
 
   const [input, setInput] = useState("");
   const [mediaFiles, setMediaFiles] = useState([]);
   const [showEmoji, setShowEmoji] = useState(false);
-  const [partnerTyping, setPartnerTyping] = useState(false);
-  const [selectedMsgs, setSelectedMsgs] = useState([]);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [forwardOpen, setForwardOpen] = useState(false);
-  const [recording, setRecording] = useState(false);
-  const [mediaRecorder, setMediaRecorder] = useState(null);
-  const [showMembers, setShowMembers] = useState(false);
-  const [addMemberOpen, setAddMemberOpen] = useState(false);
-  const [removeMemberOpen, setRemoveMemberOpen] = useState(false);
-  const [longPressMsg, setLongPressMsg] = useState(null);
-  const [longPressTimer, setLongPressTimer] = useState(null);
-  const [isRecordingSupported, setIsRecordingSupported] = useState(true);
+  const [anchorEl, setAnchorEl] = useState(null);
+  const [selectedMessage, setSelectedMessage] = useState(null);
   const [replyingTo, setReplyingTo] = useState(null);
   const [editingMessage, setEditingMessage] = useState(null);
-  const [showReactions, setShowReactions] = useState(null);
+  const [recording, setRecording] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({});
+  const [mediaRecorder, setMediaRecorder] = useState(null);
+  const [audioChunks, setAudioChunks] = useState([]);
+  const [isRecordingSupported, setIsRecordingSupported] = useState(true);
+  const [playingAudio, setPlayingAudio] = useState(null);
+  const [uploadSnackbar, setUploadSnackbar] = useState({ open: false, message: '' });
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [messageError, setMessageError] = useState(null);
+  const [showAIAssistant, setShowAIAssistant] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filteredMessages, setFilteredMessages] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
 
-  const scrollEnd = useRef();
-  const typingTimeout = useRef(null);
-  const audioChunks = useRef([]);
+  // Selection states
+  const [selectedMessages, setSelectedMessages] = useState(new Set());
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [forwardDialogOpen, setForwardDialogOpen] = useState(false);
+  const [clearChatDialogOpen, setClearChatDialogOpen] = useState(false);
+  const [moreOptionsAnchor, setMoreOptionsAnchor] = useState(null);
+  const [usersForForward, setUsersForForward] = useState([]);
+  const [selectedForwardUsers, setSelectedForwardUsers] = useState(new Set());
+
+  const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
+  const scrollContainerRef = useRef(null);
+  const audioRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
+  const inputRef = useRef(null);
 
-  const currentChat = selectedUser || selectedGroup;
+  // ============ ENHANCED MESSAGE PERSISTENCE ============
 
-  // Check if recording is supported
+// Update the loadMessages function with better error handling
+const loadMessages = useCallback(async (forceRefresh = false) => {
+  if (!selectedUser?._id) {
+    console.log("No selected user, clearing messages");
+    setMessages([]);
+    return;
+  }
+  
+  try {
+    console.log("🔄 Loading messages for user:", selectedUser._id, "Force refresh:", forceRefresh);
+    
+    // Always check cache first for instant loading
+    const cachedMessages = getCachedMessages(selectedUser._id);
+    
+    if (cachedMessages && cachedMessages.length > 0 && !forceRefresh) {
+      console.log("📦 Using cached messages:", cachedMessages.length);
+      setMessages(cachedMessages);
+      setMessageError(null);
+      
+      // Background refresh for updates (don't await this)
+      setTimeout(async () => {
+        try {
+          const freshMessages = await getMessage(selectedUser._id, 1, true);
+          if (freshMessages && freshMessages.length !== cachedMessages.length) {
+            console.log("🔄 Background refresh: messages updated");
+            setMessages(freshMessages);
+          }
+        } catch (error) {
+          console.log("⚠️ Background refresh failed, using cached messages");
+        }
+      }, 500);
+      
+      return;
+    }
+    
+    // Fetch fresh messages
+    console.log("📡 Fetching fresh messages...");
+    const freshMessages = await getMessage(selectedUser._id, 1, true);
+    
+    if (freshMessages && freshMessages.length > 0) {
+      console.log("✅ Fresh messages loaded:", freshMessages.length);
+      setMessages(freshMessages);
+      setMessageError(null);
+    } else {
+      console.log("💬 No messages in this chat");
+      setMessages([]);
+      setMessageError("No messages yet. Start a conversation!");
+    }
+    
+  } catch (error) {
+    console.error("❌ Failed to load messages:", error);
+    
+    // Don't show error for cancelled requests
+    if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+      console.log('ℹ️ Message load was cancelled');
+      return;
+    }
+    
+    setMessageError("Failed to load messages");
+    
+    // Fallback to cached messages
+    const cachedMessages = getCachedMessages(selectedUser._id);
+    if (cachedMessages && cachedMessages.length > 0) {
+      console.log("🔄 Using cached messages as fallback");
+      setMessages(cachedMessages);
+      toast.error("Using cached messages - connection issue");
+    } else {
+      setMessages([]);
+      toast.error("Failed to load messages");
+    }
+  }
+}, [selectedUser, getMessage, setMessages, getCachedMessages]);
+
+  // Enhanced cache persistence
   useEffect(() => {
-    if (!navigator.mediaDevices || !window.MediaRecorder) {
-      setIsRecordingSupported(false);
+    if (selectedUser && messages.length > 0) {
+      console.log("Caching messages:", messages.length, "for user:", selectedUser._id);
+      setCachedMessages(selectedUser._id, messages);
+    }
+  }, [messages, selectedUser, setCachedMessages]);
+
+  // Load messages when component mounts or user changes
+// Update the useEffect that loads messages and pinned messages
+useEffect(() => {
+  if (selectedUser) {
+    console.log("User selected, loading messages...");
+    
+    // Use a flag to track if component is still mounted
+    let isMounted = true;
+    
+    const loadData = async () => {
+      try {
+        await loadMessages();
+        
+        if (isMounted) {
+          clearSelection();
+          
+          // Load pinned messages with error handling
+          try {
+            await getPinnedMessages(selectedUser._id);
+          } catch (pinError) {
+            console.log('⚠️ Could not load pinned messages:', pinError.message);
+            // This is non-critical, so we don't show error to user
+          }
+        }
+      } catch (error) {
+        if (isMounted) {
+          console.error('❌ Error loading chat data:', error);
+        }
+      }
+    };
+    
+    loadData();
+    
+    return () => {
+      isMounted = false;
+    };
+  } else {
+    console.log("No user selected, clearing messages");
+    setMessages([]);
+  }
+}, [selectedUser?._id]);
+
+  // Handle page refresh - restore from cache immediately
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      // Save current state to localStorage for immediate restoration
+      if (selectedUser && messages.length > 0) {
+        localStorage.setItem(`chat-${selectedUser._id}-backup`, JSON.stringify({
+          messages,
+          timestamp: Date.now()
+        }));
+      }
+    };
+
+    const restoreFromBackup = () => {
+      if (selectedUser) {
+        const backup = localStorage.getItem(`chat-${selectedUser._id}-backup`);
+        if (backup) {
+          try {
+            const { messages: backupMessages, timestamp } = JSON.parse(backup);
+            // Only use backup if it's less than 5 minutes old
+            if (Date.now() - timestamp < 5 * 60 * 1000) {
+              console.log("Restoring from backup");
+              setMessages(backupMessages);
+            }
+            // Clean up
+            localStorage.removeItem(`chat-${selectedUser._id}-backup`);
+          } catch (error) {
+            console.error("Failed to restore from backup:", error);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    restoreFromBackup();
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [selectedUser, messages]);
+
+  // ============ ENHANCED REACTIONS SYSTEM ============
+
+  const handleReactToMessage = useCallback(async (messageId, emoji) => {
+    if (!messageId || !emoji) {
+      console.error("Invalid reaction parameters");
+      return;
+    }
+
+    try {
+      console.log("Adding reaction:", emoji, "to message:", messageId);
+      await reactToMessage(messageId, emoji);
+      
+      // Optimistic update for better UX
+      setMessages(prev => prev.map(msg => {
+        if (msg._id === messageId) {
+          const existingReaction = msg.reactions?.find(r => r.emoji === emoji);
+          
+          if (existingReaction) {
+            // Update existing reaction
+            return {
+              ...msg,
+              reactions: msg.reactions.map(r =>
+                r.emoji === emoji
+                  ? {
+                      ...r,
+                      count: r.count + 1,
+                      users: [...(r.users || []), authUser._id]
+                    }
+                  : r
+              )
+            };
+          } else {
+            // Add new reaction
+            return {
+              ...msg,
+              reactions: [
+                ...(msg.reactions || []),
+                {
+                  emoji,
+                  count: 1,
+                  users: [authUser._id]
+                }
+              ]
+            };
+          }
+        }
+        return msg;
+      }));
+      
+    } catch (error) {
+      console.error("Failed to react to message:", error);
+      toast.error("Failed to add reaction");
+      
+      // Revert optimistic update
+      loadMessages(true);
+    }
+  }, [reactToMessage, authUser._id, loadMessages]);
+
+  const handleRemoveReaction = useCallback(async (messageId, emoji) => {
+    if (!messageId || !emoji) {
+      console.error("Invalid reaction removal parameters");
+      return;
+    }
+
+    try {
+      console.log("Removing reaction:", emoji, "from message:", messageId);
+      await removeReaction(messageId, emoji);
+      
+      // Optimistic update
+      setMessages(prev => prev.map(msg => {
+        if (msg._id === messageId) {
+          const updatedReactions = msg.reactions
+            ?.map(r => {
+              if (r.emoji === emoji) {
+                const newCount = r.count - 1;
+                const newUsers = r.users?.filter(id => id !== authUser._id);
+                return newCount > 0 
+                  ? { ...r, count: newCount, users: newUsers }
+                  : null;
+              }
+              return r;
+            })
+            .filter(Boolean);
+          
+          return {
+            ...msg,
+            reactions: updatedReactions || []
+          };
+        }
+        return msg;
+      }));
+      
+    } catch (error) {
+      console.error("Failed to remove reaction:", error);
+      toast.error("Failed to remove reaction");
+      
+      // Revert optimistic update
+      loadMessages(true);
+    }
+  }, [removeReaction, authUser._id, loadMessages]);
+
+  // ============ SELECTION FUNCTIONS ============
+
+  const toggleMessageSelection = useCallback((messageId) => {
+    setSelectedMessages(prev => {
+      const newSelection = new Set(prev);
+      if (newSelection.has(messageId)) {
+        newSelection.delete(messageId);
+      } else {
+        newSelection.add(messageId);
+      }
+      
+      if (newSelection.size > 0 && !isSelectMode) {
+        setIsSelectMode(true);
+      } else if (newSelection.size === 0 && isSelectMode) {
+        setIsSelectMode(false);
+      }
+      
+      return newSelection;
+    });
+  }, [isSelectMode]);
+
+  const clearSelection = useCallback(() => {
+    setSelectedMessages(new Set());
+    setIsSelectMode(false);
+  }, []);
+
+  const deleteSelectedMessages = useCallback(async () => {
+    if (selectedMessages.size === 0) return;
+
+    try {
+      const deletePromises = Array.from(selectedMessages).map(messageId => 
+        deleteMessageById(messageId)
+      );
+      
+      await Promise.all(deletePromises);
+      toast.success(`Deleted ${selectedMessages.size} message${selectedMessages.size > 1 ? 's' : ''}`);
+      clearSelection();
+    } catch (error) {
+      console.error("Failed to delete selected messages:", error);
+      toast.error("Failed to delete messages");
+    }
+  }, [selectedMessages, deleteMessageById, clearSelection]);
+
+  const forwardSelectedMessages = useCallback(async () => {
+    if (selectedMessages.size === 0) return;
+
+    try {
+      const messagesToForward = messages.filter(msg => selectedMessages.has(msg._id));
+      
+      if (selectedForwardUsers.size === 0) {
+        toast.error("Please select at least one recipient");
+        return;
+      }
+
+      const recipientIds = Array.from(selectedForwardUsers);
+      
+      for (const recipientId of recipientIds) {
+        await forwardMessagesToUser(messagesToForward, [recipientId]);
+      }
+
+      toast.success(`Forwarded ${selectedMessages.size} message${selectedMessages.size > 1 ? 's' : ''} to ${recipientIds.length} recipient${recipientIds.length > 1 ? 's' : ''}`);
+      setForwardDialogOpen(false);
+      clearSelection();
+      setSelectedForwardUsers(new Set());
+    } catch (error) {
+      console.error("Failed to forward messages:", error);
+      toast.error("Failed to forward messages");
+    }
+  }, [selectedMessages, messages, selectedForwardUsers, forwardMessagesToUser, clearSelection]);
+
+  const downloadSelectedMessages = useCallback(() => {
+    if (selectedMessages.size === 0) return;
+    
+    const selectedMsgs = messages.filter(msg => selectedMessages.has(msg._id));
+    let hasDownloadableContent = false;
+
+    selectedMsgs.forEach(msg => {
+      if (msg.media && msg.media.length > 0) {
+        hasDownloadableContent = true;
+        msg.media.forEach(mediaUrl => {
+          try {
+            const filename = mediaUrl.split('/').pop() || `file-${msg._id}`;
+            downloadFile(mediaUrl, filename);
+          } catch (error) {
+            console.error('Failed to download media:', error);
+          }
+        });
+      }
+    });
+
+    if (!hasDownloadableContent) {
+      toast.info("No downloadable media in selected messages");
+    }
+    
+    clearSelection();
+  }, [selectedMessages, messages, downloadFile, clearSelection]);
+
+  const replyToSelectedMessages = useCallback(() => {
+    if (selectedMessages.size === 0) return;
+    const firstId = Array.from(selectedMessages)[0];
+    const msg = messages.find(m => m._id === firstId);
+    if (msg) setReplyingTo(msg);
+    clearSelection();
+  }, [selectedMessages, messages, clearSelection]);
+
+  const pinSelectedMessage = useCallback(async () => {
+    if (selectedMessages.size === 0) return;
+    
+    try {
+      const messageId = Array.from(selectedMessages)[0];
+      await pinMessage(messageId);
+      toast.success("Message pinned successfully");
+      clearSelection();
+    } catch (error) {
+      console.error("Failed to pin message:", error);
+      toast.error("Failed to pin message");
+    }
+  }, [selectedMessages, pinMessage, clearSelection]);
+
+  const copySelectedMessages = useCallback(() => {
+    if (selectedMessages.size === 0) return;
+    
+    const selectedMsgs = messages.filter(msg => selectedMessages.has(msg._id));
+    const textToCopy = selectedMsgs.map(msg => msg.text).join('\n\n');
+    
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      toast.success(`Copied ${selectedMsgs.length} message${selectedMsgs.length > 1 ? 's' : ''} to clipboard`);
+      clearSelection();
+    }).catch(() => {
+      toast.error("Failed to copy messages");
+    });
+  }, [selectedMessages, messages, clearSelection]);
+
+  // Clear entire chat
+const clearChat = useCallback(async () => {
+  if (!selectedUser) return;
+
+  try {
+    console.log('🔍 CLEAR CHAT TRIGGERED - Chat ID:', selectedUser._id);
+    
+    // Use the permanent clear function from context
+    const success = await clearChatPermanently(selectedUser._id);
+    
+    if (success) {
+      setClearChatDialogOpen(false);
+      console.log('✅ Chat cleared successfully');
+    } else {
+      console.log('❌ Chat clear failed');
+    }
+  } catch (error) {
+    console.error("❌ Clear chat error:", error);
+    toast.error("Failed to clear chat");
+  }
+}, [selectedUser, clearChatPermanently]);
+  // Load users for forwarding
+  const loadUsersForForward = useCallback(async () => {
+    try {
+      const availableUsers = friends.filter(friend => 
+        friend._id !== selectedUser?._id && 
+        friend._id !== authUser?._id
+      );
+      setUsersForForward(availableUsers);
+    } catch (error) {
+      console.error("Failed to load users for forwarding:", error);
+      toast.error("Failed to load users");
+    }
+  }, [friends, selectedUser, authUser]);
+
+  const toggleForwardUserSelection = useCallback((userId) => {
+    setSelectedForwardUsers(prev => {
+      const newSelection = new Set(prev);
+      if (newSelection.has(userId)) {
+        newSelection.delete(userId);
+      } else {
+        newSelection.add(userId);
+      }
+      return newSelection;
+    });
+  }, []);
+
+  // ============ MESSAGE FUNCTIONS ============
+
+  const scrollToBottom = useCallback((instant = false) => {
+    if (messagesEndRef.current) {
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ 
+          behavior: instant ? 'auto' : 'smooth',
+          block: "end" 
+        });
+      }, 100);
     }
   }, []);
 
-  // Helper: Convert file to base64
-  const convertToBase64 = (file) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = (error) => reject(error);
-    });
+  const handleTyping = (e) => {
+    const value = e.target.value;
+    setInput(value);
+    
+    if (!selectedUser || !socket) return;
+
+    sendTypingStatus(true);
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => sendTypingStatus(false), 1200);
   };
 
-  // Scroll to bottom
-  useEffect(() => {
-    scrollEnd.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, partnerTyping, replyingTo, editingMessage]);
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
 
-  // Load messages when chat changes
-// Add this ref at the top of ChatContainer component
-const isMountedRef = useRef(true);
-
-useEffect(() => {
-  isMountedRef.current = true;
-  
-  return () => {
-    isMountedRef.current = false;
-  };
-}, []);
-
-useEffect(() => {
-  if (!currentChat?._id) return;
-  
-  let isSubscribed = true;
-  
-  const loadMessages = async () => {
-    try {
-      await getMessage(currentChat._id);
-    } catch (error) {
-      if (isSubscribed && isMountedRef.current) {
-        console.error("Failed to load messages:", error);
-      }
-    }
-  };
-  
-  loadMessages();
-  
-  // Cleanup function
-  return () => {
-    isSubscribed = false;
-  };
-}, [currentChat?._id]); // Remove getMessage from dependencies
-
-  // Mark messages as seen when user is active
-  useEffect(() => {
-    if (currentChat && messages.length > 0) {
-      const hasUnseenMessages = messages.some(msg => {
-        const isFromOtherUser = msg.senderId?._id !== authUser?._id && msg.senderId !== authUser?._id;
-        const isUnseen = !msg.seen && !msg.seenBy?.includes(authUser?._id);
-        return isFromOtherUser && isUnseen;
-      });
-      
-      if (hasUnseenMessages) {
-        const timer = setTimeout(() => {
-          markMessagesAsSeen(currentChat._id);
-        }, 1000);
-        
-        return () => clearTimeout(timer);
-      }
-    }
-  }, [messages, currentChat, authUser, markMessagesAsSeen]);
-
-  // Typing listener
-  useEffect(() => {
-    if (!socket || !currentChat) return;
-    
-    const handleTyping = ({ senderId, isTyping, receiverId }) => {
-      if (currentChat._id === senderId || receiverId === currentChat._id) {
-        setPartnerTyping(isTyping);
-      }
-    };
-
-    const handleGroupTyping = ({ userId, isTyping, groupId }) => {
-      if (currentChat._id === groupId && userId !== authUser?._id) {
-        setPartnerTyping(isTyping);
-      }
-    };
-    
-    socket.on("typing", handleTyping);
-    socket.on("groupTyping", handleGroupTyping);
-    
-    return () => {
-      socket.off("typing", handleTyping);
-      socket.off("groupTyping", handleGroupTyping);
-    };
-  }, [socket, currentChat, authUser]);
-
-  // Message seen listener
-  useEffect(() => {
-    if (!socket) return;
-    
-    const handleMessageSeen = ({ messageId, seenBy }) => {
-      setMessages(prev => prev.map(msg => 
-        msg._id === messageId ? { 
-          ...msg, 
-          seen: true, 
-          seenBy: [...(msg.seenBy || []), ...seenBy],
-          status: "seen" 
-        } : msg
-      ));
-    };
-    
-    socket.on("messageSeen", handleMessageSeen);
-    return () => socket.off("messageSeen", handleMessageSeen);
-  }, [socket, setMessages]);
-
-  // Voice recording with proper cleanup
-  useEffect(() => {
-    let currentStream = null;
-
-    const startRecording = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            sampleRate: 44100
-          } 
-        });
-        currentStream = stream;
-        
-        const recorder = new MediaRecorder(stream, {
-          mimeType: 'audio/webm;codecs=opus'
-        });
-        
-        audioChunks.current = [];
-
-        recorder.ondataavailable = (e) => {
-          if (e.data.size > 0) {
-            audioChunks.current.push(e.data);
-          }
-        };
-
-        recorder.onstop = async () => {
-          try {
-            const audioBlob = new Blob(audioChunks.current, { type: 'audio/webm' });
-            
-            if (audioBlob.size === 0) {
-              toast.error("No audio recorded");
-              return;
-            }
-
-            if (currentChat) {
-              await sendVoiceMessage(audioBlob, currentChat._id, isGroup ? 'Group' : 'User');
-            }
-            
-          } catch (error) {
-            console.error("Voice message processing error:", error);
-            toast.error("Failed to process voice message");
-          } finally {
-            if (currentStream) {
-              currentStream.getTracks().forEach(track => track.stop());
-            }
-          }
-        };
-
-        recorder.start(1000);
-        setMediaRecorder(recorder);
-        
-      } catch (err) {
-        console.error("Microphone access denied:", err);
-        toast.error("Microphone access is required for voice messages");
-        setRecording(false);
-        setIsRecordingSupported(false);
-      }
-    };
-
-    if (recording) {
-      startRecording();
-    } else if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-      mediaRecorder.stop();
-      setMediaRecorder(null);
+    if (!input.trim() && mediaFiles.length === 0) {
+      toast.error("Please enter a message or attach a file");
+      return;
     }
 
-    return () => {
-      if (currentStream) {
-        currentStream.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, [recording, currentChat, isGroup, sendVoiceMessage]);
+    if (!selectedUser) {
+      toast.error("Please select a conversation first");
+      return;
+    }
 
-  // Close dropdowns when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (e.target.closest('.emoji-picker-react') || 
-          e.target.closest('.reaction-picker') ||
-          e.target.closest('.dropdown-container')) {
+    // FRIENDS ONLY CHECK - Enhanced
+    if (!isGroup) {
+      const isFriend = friends?.some(friend => friend._id === selectedUser._id) || false;
+      if (!isFriend) {
+        toast.error("You can only message friends. This user is not in your friends list.");
         return;
       }
       
-      setDropdownOpen(false);
-      setForwardOpen(false);
-      setAddMemberOpen(false);
-      setRemoveMemberOpen(false);
-      setShowEmoji(false);
-      setLongPressMsg(null);
-      setShowReactions(null);
-    };
-
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, []);
-
-  // Typing input
-  const handleTyping = (e) => {
-    setInput(e.target.value);
-    if (!currentChat || !socket) return;
-
-    sendTypingStatus(true);
-    if (typingTimeout.current) clearTimeout(typingTimeout.current);
-    typingTimeout.current = setTimeout(() => sendTypingStatus(false), 1200);
-  };
-
-  // Send message
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!input.trim() && !mediaFiles.length) return;
-    if (!currentChat) {
-      toast.error("Please select a chat first");
-      return;
+      if (!canSendMessageToUser(selectedUser)) {
+        toast.error("You cannot send messages to this user due to privacy settings");
+        return;
+      }
     }
 
     try {
       let mediaUrls = [];
       
-      // Upload media files if any
+      // Handle file uploads with progress
       if (mediaFiles.length > 0) {
-        const token = localStorage.getItem('token');
-        if (!token) {
-          toast.error("Please login again");
-          navigate('/login');
-          return;
-        }
-
-        // Validate file sizes
-        const maxSize = 10 * 1024 * 1024; // 10MB
-        for (const file of mediaFiles) {
-          if (file.size > maxSize) {
-            toast.error(`File ${file.name} is too large (max 10MB)`);
-            return;
-          }
-        }
-
-        const uploadPromises = Array.from(mediaFiles).map(async (file, index) => {
+        setUploadSnackbar({ open: true, message: 'Uploading files...' });
+        
+        // Enhanced upload with better error handling
+        const uploadPromises = mediaFiles.map(async (file, index) => {
           try {
-            const base64 = await convertToBase64(file);
-            const uploadRes = await authAxios.post('/api/upload', { 
-              file: base64,
-              resourceType: getFileType(file.name)
-            }, {
-              headers: { Authorization: `Bearer ${token}` },
-              onUploadProgress: (progressEvent) => {
-                const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-                setUploadProgress(prev => ({ ...prev, [index]: progress }));
-              }
+            const url = await uploadFile(file, (progress) => {
+              setUploadProgress(prev => ({ ...prev, [index]: progress }));
             });
-            return uploadRes.data.url;
-          } catch (uploadErr) {
-            console.error("Upload error:", uploadErr);
-            throw new Error(`Failed to upload ${file.name}`);
+            return url;
+          } catch (error) {
+            console.error(`Upload failed for file ${index}:`, error);
+            throw new Error(`Failed to upload ${file.name}: ${error.message}`);
           }
         });
-        
+
         mediaUrls = await Promise.all(uploadPromises);
-        setUploadProgress({});
+        setUploadSnackbar({ open: false, message: '' });
       }
 
       const messageData = {
@@ -379,210 +1753,95 @@ useEffect(() => {
       if (editingMessage) {
         await editMessage(editingMessage._id, input.trim());
         setEditingMessage(null);
-      } else if (isGroup) {
-        await sendGroupMessage(messageData);
+        toast.success("Message updated successfully");
       } else {
-        await sendMessage(messageData);
+        if (isGroup) {
+          await sendGroupMessage(messageData);
+        } else {
+          await sendMessage(messageData);
+        }
+        toast.success("Message sent successfully");
       }
 
+      // Reset state
       setInput("");
       setMediaFiles([]);
       setShowEmoji(false);
       setReplyingTo(null);
-      setEditingMessage(null);
+      setShowAIAssistant(false);
       sendTypingStatus(false);
       
-    } catch (err) {
-      console.error("Send failed:", err);
-      toast.error(err.response?.data?.message || "Failed to send message");
-    }
-  };
-
-  // Voice record toggle
-  const toggleVoiceRecord = () => {
-    if (!currentChat) {
-      toast.error("Please select a chat first");
-      return;
-    }
-    
-    if (!isRecordingSupported) {
-      toast.error("Voice recording is not supported in your browser");
-      return;
-    }
-    
-    setRecording(prev => !prev);
-  };
-
-  // Long press for message actions
-  const handleMouseDown = (msg) => {
-    const timer = setTimeout(() => {
-      setLongPressMsg(msg);
-      setSelectedMsgs([]);
-    }, 500);
-    setLongPressTimer(timer);
-  };
-
-  const handleMouseUp = () => {
-    if (longPressTimer) {
-      clearTimeout(longPressTimer);
-      setLongPressTimer(null);
-    }
-  };
-
-  // Select / unselect messages
-  const toggleSelect = (msgId, e) => {
-    if (e) e.stopPropagation();
-    if (longPressMsg) return;
-    
-    setSelectedMsgs(prev =>
-      prev.includes(msgId) ? prev.filter(id => id !== msgId) : [...prev, msgId]
-    );
-  };
-
-  // Delete selected
-  const deleteSelected = async () => {
-    if (!selectedMsgs.length) {
-      toast.error("No messages selected");
-      return;
-    }
-    
-    try {
-      await Promise.all(selectedMsgs.map(deleteMessageById));
-      setSelectedMsgs([]);
-      setDropdownOpen(false);
-      toast.success("Messages deleted");
+      // Scroll to bottom after sending
+      setTimeout(() => scrollToBottom(true), 200);
+      
     } catch (error) {
-      console.error("Delete error:", error);
-      toast.error("Failed to delete messages");
-    }
-  };
-
-  // Clear chat
-  const clearChat = async () => {
-    if (!currentChat) return;
-    
-    if (window.confirm("Are you sure you want to clear this chat? This action cannot be undone.")) {
-      try {
-        setMessages([]);
-        setSelectedMsgs([]);
-        setDropdownOpen(false);
-        toast.success("Chat cleared");
-      } catch (error) {
-        console.error("Clear chat error:", error);
-        toast.error("Failed to clear chat");
+      console.error("Send message failed:", error);
+      toast.error(error.message || "Failed to send message");
+      
+      // Show specific error messages
+      if (error.message.includes('network') || error.message.includes('connection')) {
+        toast.error("Network error: Please check your internet connection");
       }
     }
   };
 
-  // Forward selected
-  const forwardSelected = async (forwardToUser) => {
-    if (!selectedMsgs.length || !forwardToUser) {
-      toast.error("No messages or user selected");
-      return;
-    }
-    
-    try {
-      const msgsToForward = messages.filter(m => selectedMsgs.includes(m._id));
-      await forwardMessagesToUser(msgsToForward, [forwardToUser._id]);
-      setSelectedMsgs([]);
-      setForwardOpen(false);
-      toast.success("Messages forwarded");
-    } catch (error) {
-      console.error("Forward error:", error);
-      toast.error("Failed to forward messages");
-    }
-  };
-
-  // Add member to group
-  const handleAddMember = async (memberId) => {
-    if (!selectedGroup?._id || !memberId) {
-      toast.error("Please select a user to add");
-      return;
-    }
-    
-    try {
-      await addMemberToGroup(selectedGroup._id, [memberId]);
-      setAddMemberOpen(false);
-    } catch (error) {
-      console.error("Add member error:", error);
-    }
-  };
-
-  // Remove member from group
-  const handleRemoveMember = async (memberId) => {
-    if (!selectedGroup?._id || !memberId) {
-      toast.error("Please select a member to remove");
-      return;
-    }
-    
-    try {
-      await removeMemberFromGroup(selectedGroup._id, memberId);
-      setRemoveMemberOpen(false);
-    } catch (error) {
-      console.error("Remove member error:", error);
-    }
-  };
-
-  // Leave group
-  const handleLeaveGroup = async () => {
-    if (!selectedGroup?._id) return;
-    
-    if (window.confirm("Are you sure you want to leave this group?")) {
-      try {
-        await leaveGroup(selectedGroup._id);
-        setDropdownOpen(false);
-        toast.success("You have left the group");
-      } catch (error) {
-        console.error("Leave group error:", error);
-        toast.error("Failed to leave group");
-      }
-    }
-  };
-
-  // Handle long press actions
-  const handleLongPressAction = (action, emoji = null) => {
-    if (!longPressMsg) return;
-
+  const handleAIAction = (action) => {
     switch (action) {
-      case 'react':
-        if (emoji) {
-          reactToMessage(longPressMsg._id, emoji);
-          toast.success(`Reacted with ${emoji}`);
-        } else {
-          setShowReactions(longPressMsg._id);
-        }
+      case "Help me improve this message":
+        setInput(prev => prev + " [AI: Could you help me improve this message?]");
         break;
-      case 'forward':
-        forwardMessagesToUser([longPressMsg], [currentChat._id]);
+      case "Translate to Spanish":
+        setInput(prev => prev + " [AI: Spanish translation]");
         break;
-      case 'copy':
-        if (longPressMsg.text) {
-          navigator.clipboard.writeText(longPressMsg.text);
-          toast.success("Message copied to clipboard");
-        } else {
-          toast.error("No text to copy");
-        }
+      case "Make it more professional":
+        setInput(prev => prev.replace(/hey/gi, "Hello").replace(/u/gi, "you"));
         break;
-      case 'reply':
-        setReplyingTo(longPressMsg);
+      case "Shorten this message":
+        setInput(prev => prev.length > 50 ? prev.substring(0, 50) + "..." : prev);
         break;
-      case 'edit':
-        if (longPressMsg.senderId?._id === authUser?._id || longPressMsg.senderId === authUser?._id) {
-          setEditingMessage(longPressMsg);
-          setInput(longPressMsg.text || '');
-        } else {
-          toast.error("You can only edit your own messages");
-        }
+      case "Add emojis to make it friendly":
+        setInput(prev => prev + " 😊");
         break;
-      case 'delete':
-        deleteMessageById(longPressMsg._id);
+      default:
         break;
     }
-    
-    setLongPressMsg(null);
+    inputRef.current?.focus();
   };
 
-  // Handle file selection
+  const handleSearch = useCallback((query) => {
+    setSearchQuery(query);
+    if (!query.trim()) {
+      setIsSearching(false);
+      setFilteredMessages([]);
+      return;
+    }
+
+    setIsSearching(true);
+    const filtered = messages.filter(msg => 
+      msg.text?.toLowerCase().includes(query.toLowerCase()) ||
+      msg.senderId?.fullName?.toLowerCase().includes(query.toLowerCase())
+    );
+    setFilteredMessages(filtered);
+  }, [messages]);
+
+  const uploadFiles = async (files) => {
+    const uploadPromises = files.map(async (file, index) => {
+      try {
+        const url = await uploadFile(file, (progress) => {
+          setUploadProgress(prev => ({ ...prev, [index]: progress }));
+        });
+        return url;
+      } catch (error) {
+        console.error(`Upload failed for file ${index}:`, error);
+        throw error;
+      }
+    });
+
+    const results = await Promise.all(uploadPromises);
+    setUploadProgress({});
+    return results;
+  };
+
   const handleFileSelect = (e) => {
     const files = Array.from(e.target.files);
     
@@ -601,639 +1860,1495 @@ useEffect(() => {
     }
   };
 
-  // Quick reactions
-  const quickReactions = ['❤️', '😂', '😮', '😢', '😠'];
+  const handleMessageMenuOpen = (event, message) => {
+    setAnchorEl(event.currentTarget);
+    setSelectedMessage(message);
+  };
 
-  if (!currentChat) {
+  const handleMessageMenuClose = () => {
+    setAnchorEl(null);
+    setSelectedMessage(null);
+  };
+
+  const handleMessageAction = (action) => {
+    if (!selectedMessage) return;
+
+    switch (action) {
+      case 'reply':
+        setReplyingTo(selectedMessage);
+        break;
+      case 'edit':
+        if (selectedMessage.senderId?._id === authUser._id) {
+          setEditingMessage(selectedMessage);
+          setInput(selectedMessage.text || '');
+          inputRef.current?.focus();
+        } else {
+          toast.error("You can only edit your own messages");
+        }
+        break;
+      case 'delete':
+        handleDeleteMessage(selectedMessage._id);
+        break;
+      case 'forward':
+        setSelectedMessages(new Set([selectedMessage._id]));
+        setIsSelectMode(true);
+        setForwardDialogOpen(true);
+        loadUsersForForward();
+        break;
+      case 'select':
+        toggleMessageSelection(selectedMessage._id);
+        break;
+      case 'pin':
+        pinMessage(selectedMessage._id);
+        toast.success("Message pinned");
+        break;
+      case 'unpin':
+        unpinMessage(selectedMessage._id);
+        toast.success("Message unpinned");
+        break;
+      case 'copy':
+        navigator.clipboard.writeText(selectedMessage.text || '');
+        toast.success("Message copied to clipboard");
+        break;
+      default:
+        break;
+    }
+    
+    handleMessageMenuClose();
+  };
+
+  const handleDeleteMessage = async (messageId) => {
+    try {
+      await deleteMessageById(messageId);
+      toast.success("Message deleted successfully");
+    } catch (error) {
+      toast.error("Failed to delete message");
+    }
+  };
+
+  const handleVoiceRecord = async () => {
+    if (!isRecordingSupported) {
+      toast.error("Voice recording is not supported in your browser");
+      return;
+    }
+
+    if (!recording) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            sampleRate: 44100
+          } 
+        });
+        
+        const recorder = new MediaRecorder(stream);
+        const chunks = [];
+
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 0) {
+            chunks.push(e.data);
+          }
+        };
+
+        recorder.onstop = async () => {
+          const audioBlob = new Blob(chunks, { type: 'audio/webm' });
+          
+          if (audioBlob.size === 0) {
+            toast.error("No audio recorded");
+            return;
+          }
+
+          try {
+            setUploadSnackbar({ open: true, message: 'Uploading voice message...' });
+            
+            const uploadRes = await uploadAudio(audioBlob);
+
+            if (uploadRes.success) {
+              const messageData = {
+                text: '',
+                mediaUrls: [uploadRes.url],
+                fileType: 'audio'
+              };
+
+              if (isGroup) {
+                await sendGroupMessage(messageData);
+              } else {
+                await sendMessage(messageData);
+              }
+              
+              toast.success('Voice message sent!');
+            }
+          } catch (error) {
+            console.error("Voice message processing error:", error);
+            toast.error("Failed to send voice message");
+          } finally {
+            setUploadSnackbar({ open: false, message: '' });
+            stream.getTracks().forEach(track => track.stop());
+          }
+        };
+
+        recorder.start();
+        setMediaRecorder(recorder);
+        setRecording(true);
+        setAudioChunks(chunks);
+        
+      } catch (err) {
+        console.error("Microphone access denied:", err);
+        toast.error("Microphone access is required for voice messages");
+        setRecording(false);
+        setIsRecordingSupported(false);
+      }
+    } else {
+      // Stop recording
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        setRecording(false);
+        setMediaRecorder(null);
+      }
+    }
+  };
+
+  const handlePlayAudio = (audioUrl, messageId) => {
+    if (playingAudio === messageId) {
+      // Pause audio
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+      setPlayingAudio(null);
+    } else {
+      // Play audio
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      const audio = new Audio(audioUrl);
+      audioRef.current = audio;
+      audio.play();
+      setPlayingAudio(messageId);
+      
+      audio.onended = () => {
+        setPlayingAudio(null);
+        audioRef.current = null;
+      };
+      
+      audio.onerror = () => {
+        console.error("Error playing audio");
+        setPlayingAudio(null);
+        audioRef.current = null;
+        toast.error("Failed to play audio");
+      };
+    }
+  };
+
+  // ============ EFFECTS ============
+
+  // Mark messages as seen when user is active
+  useEffect(() => {
+    if (selectedUser && messages.length > 0) {
+      const hasUnseenMessages = messages.some(msg => {
+        const isFromOtherUser = msg.senderId?._id !== authUser?._id && msg.senderId !== authUser?._id;
+        const isUnseen = !msg.seen && !msg.seenBy?.includes(authUser?._id);
+        return isFromOtherUser && isUnseen;
+      });
+      
+      if (hasUnseenMessages) {
+        const timer = setTimeout(() => {
+          markMessagesAsSeen(selectedUser._id);
+        }, 1000);
+        
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [messages, selectedUser, authUser, markMessagesAsSeen]);
+
+  // Check recording support
+  useEffect(() => {
+    if (!navigator.mediaDevices || !window.MediaRecorder) {
+      setIsRecordingSupported(false);
+    }
+  }, []);
+
+  // Connection status handling
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      if (selectedUser) {
+        loadMessages(true);
+      }
+    };
+
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [selectedUser]);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    if (messages.length > 0) {
+      scrollToBottom();
+    }
+  }, [messages, isTyping, scrollToBottom]);
+
+  // Show AI Assistant when typing long messages
+  useEffect(() => {
+    if (input.length > 100 && !showAIAssistant) {
+      setShowAIAssistant(true);
+    } else if (input.length <= 100 && showAIAssistant) {
+      setShowAIAssistant(false);
+    }
+  }, [input, showAIAssistant]);
+
+  if (!selectedUser) {
     return (
-      <div className="flex flex-col items-center justify-center gap-2 text-gray-500 bg-white/10 max-md:hidden h-full">
-        <img src={assets.logo_icon} className="max-w-16" alt="" />
-        <p className="text-lg font-medium text-white">Chat anytime, anywhere</p>
-      </div>
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100%',
+          color: 'text.secondary',
+          textAlign: 'center',
+          p: 3,
+          background: MODERN_COLORS.dark,
+          backgroundSize: 'cover',
+          position: 'relative',
+          overflow: 'hidden',
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: `radial-gradient(circle at 30% 30%, ${alpha('#667eea', 0.1)} 0%, transparent 50%),
+                        radial-gradient(circle at 70% 70%, ${alpha('#764ba2', 0.1)} 0%, transparent 50%)`,
+          },
+        }}
+      >
+        <Box
+          sx={{
+            position: 'relative',
+            zIndex: 1,
+            background: MODERN_COLORS.glass,
+            backdropFilter: 'blur(20px)',
+            borderRadius: '24px',
+            p: 4,
+            border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
+          }}
+        >
+          <PsychologyIcon sx={{ fontSize: 80, mb: 2, opacity: 0.8, color: 'primary.main' }} />
+          <Typography variant="h4" gutterBottom fontWeight="bold" sx={{ 
+            background: MODERN_COLORS.primary,
+            backgroundClip: 'text',
+            textFillColor: 'transparent',
+            mb: 2,
+          }}>
+            AI Chat Messenger
+          </Typography>
+          <Typography variant="h6" sx={{ color: alpha(theme.palette.common.white, 0.8), mb: 1 }}>
+            Welcome to Modern Chat
+          </Typography>
+          <Typography variant="body1" sx={{ color: alpha(theme.palette.common.white, 0.6) }}>
+            Select a conversation to start messaging
+          </Typography>
+        </Box>
+      </Box>
     );
   }
 
-  let lastMessageDate = null;
-
-  // Use useMemo instead of useEffect
-// ✅ FIXED VERSION - Debounced and optimized
-useEffect(() => {
-  if (messages.length === 0 || !selectedUser) return;
-
-  // Debounce the extraction to prevent too many re-renders
-  const timeoutId = setTimeout(() => {
-    extractChatContent(messages);
-  }, 500); // Wait 500ms after messages change
-
-  return () => clearTimeout(timeoutId);
-}, [messages.length, selectedUser?._id]); // Only depend on length and ID, not the entire messages array// Only depend on length and ID
+  const displayMessages = isSearching ? filteredMessages : messages;
 
   return (
-    <div className="h-full relative flex flex-col">
+    <Box sx={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      height: '100%', 
+      background: MODERN_COLORS.dark,
+      position: 'relative',
+      overflow: 'hidden',
+      '&::before': {
+        content: '""',
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: `radial-gradient(circle at 20% 20%, ${alpha('#667eea', 0.05)} 0%, transparent 50%),
+                    radial-gradient(circle at 80% 80%, ${alpha('#764ba2', 0.05)} 0%, transparent 50%)`,
+        pointerEvents: 'none',
+      },
+    }}>
+      {/* Connection Status Indicator */}
+      {!isOnline && (
+        <Slide direction="down" in={!isOnline}>
+          <Alert 
+            severity="warning" 
+            sx={{ 
+              borderRadius: 0, 
+              py: 1,
+              background: alpha(theme.palette.warning.main, 0.1),
+              backdropFilter: 'blur(10px)',
+              border: `1px solid ${alpha(theme.palette.warning.main, 0.2)}`,
+              color: 'warning.light',
+            }}
+          >
+            You are currently offline. Messages will be sent when connection is restored.
+          </Alert>
+        </Slide>
+      )}
+
       {/* Header */}
-      <div className="flex items-center gap-3 py-3 px-4 border-b border-stone-500 bg-[#1c1c2e]">
-        <button onClick={() => navigate(-1)} className="text-white md:hidden">
-          <FiArrowLeft size={20} />
-        </button>
-        <img
-          src={currentChat.profilePic || currentChat.image || assets.avatar_icon}
-          alt="Profile"
-          className="w-10 h-10 rounded-full cursor-pointer object-cover"
-          onClick={onOpenProfile}
-        />
-        <div className="flex flex-col flex-1 cursor-pointer" onClick={onOpenProfile}>
-          <p className="text-lg text-white flex items-center gap-2 truncate">
-            {isGroup ? currentChat.name : currentChat.fullName}
-            {!isGroup && onlineUsers.includes(currentChat._id) && (
-              <span className="w-2 h-2 rounded-full bg-green-500" title="Online"></span>
-            )}
-          </p>
-          {isGroup && (
-            <span className="text-xs text-gray-400">{currentChat.members?.length || 0} members</span>
-          )}
-          {partnerTyping && <p className="text-xs text-gray-400 italic">typing...</p>}
-        </div>
-
-        <div className="relative dropdown-container">
-          <button 
-            onClick={(e) => {
-              e.stopPropagation();
-              setDropdownOpen(!dropdownOpen);
-            }} 
-            className="text-white px-2 py-1 hover:bg-[#333366] rounded"
-          >
-            <FaEllipsisV size={20} />
-          </button>
-          {dropdownOpen && (
-            <div 
-              className="absolute right-0 top-full bg-[#22223b] shadow-lg rounded-md flex flex-col z-40 min-w-48 animate-slide-down border border-gray-700"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {selectedMsgs.length > 0 && (
-                <>
-                  <button onClick={deleteSelected} className="flex items-center gap-2 text-red-400 px-4 py-2 hover:bg-[#333366] rounded-t-md">
-                    <FaTrashAlt /> Delete Selected
-                  </button>
-                  <button onClick={() => setForwardOpen(true)} className="flex items-center gap-2 text-blue-400 px-4 py-2 hover:bg-[#333366]">
-                    <FaShare /> Forward Selected
-                  </button>
-                </>
-              )}
-              
-              <button onClick={clearChat} className="flex items-center gap-2 text-yellow-400 px-4 py-2 hover:bg-[#333366]">
-                <MdClear /> Clear Chat
-              </button>
-
-              {isGroup && (
-                <>
-                  <button 
-                    onClick={() => setShowMembers(!showMembers)} 
-                    className="flex items-center gap-2 text-green-400 px-4 py-2 hover:bg-[#333366]"
-                  >
-                    <FaUsers /> {showMembers ? 'Hide Members' : 'Show Members'}
-                  </button>
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setAddMemberOpen(true);
-                      setDropdownOpen(false);
-                    }} 
-                    className="flex items-center gap-2 text-green-400 px-4 py-2 hover:bg-[#333366]"
-                  >
-                    <FaUserPlus /> Add Member
-                  </button>
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setRemoveMemberOpen(true);
-                      setDropdownOpen(false);
-                    }} 
-                    className="flex items-center gap-2 text-red-400 px-4 py-2 hover:bg-[#333366]"
-                  >
-                    <FaUserMinus /> Remove Member
-                  </button>
-                  {currentChat.admin === authUser?._id && (
-                    <button className="flex items-center gap-2 text-blue-400 px-4 py-2 hover:bg-[#333366]">
-                      <FaShieldAlt /> Admin Settings
-                    </button>
-                  )}
-                  <button className="flex items-center gap-2 text-gray-400 px-4 py-2 hover:bg-[#333366]">
-                    <FaBellSlash /> Mute Notifications
-                  </button>
-                  <button 
-                    onClick={handleLeaveGroup}
-                    className="flex items-center gap-2 text-red-400 px-4 py-2 hover:bg-[#333366] rounded-b-md"
-                  >
-                    Leave Group
-                  </button>
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Forward Selection Modal */}
-      {forwardOpen && (
-        <div 
-          className="absolute top-16 right-4 bg-[#22223b] shadow-lg rounded-md p-4 max-h-60 overflow-y-auto z-50 min-w-64 border border-gray-700 dropdown-container"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <h4 className="text-white mb-3 font-medium">Forward to:</h4>
-          {users
-            .filter(u => u._id !== authUser?._id && u._id !== currentChat._id)
-            .map(user => (
-              <div 
-                key={user._id} 
-                onClick={() => forwardSelected(user)} 
-                className="flex items-center gap-3 p-2 hover:bg-[#333366] cursor-pointer rounded text-white"
-              >
-                <img src={user.profilePic || assets.avatar_icon} alt="" className="w-8 h-8 rounded-full" />
-                <span>{user.fullName}</span>
-              </div>
-            ))
-          }
-          <button 
-            onClick={() => setForwardOpen(false)} 
-            className="w-full mt-3 text-gray-400 text-sm hover:text-white"
-          >
-            Cancel
-          </button>
-        </div>
-      )}
-
-      {/* Add Member Modal */}
-      {addMemberOpen && (
-        <div 
-          className="absolute top-16 right-4 bg-[#22223b] shadow-lg rounded-md p-4 max-h-60 overflow-y-auto z-50 min-w-64 border border-gray-700 dropdown-container"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <h4 className="text-white mb-3 font-medium">Add Member:</h4>
-          {users
-            .filter(user => 
-              user._id !== authUser?._id && 
-              !currentChat.members?.some(member => member._id === user._id)
-            )
-            .map(user => (
-              <div 
-                key={user._id} 
-                onClick={() => handleAddMember(user._id)}
-                className="flex items-center gap-3 p-2 hover:bg-[#333366] cursor-pointer rounded text-white"
-              >
-                <img src={user.profilePic || assets.avatar_icon} alt="" className="w-8 h-8 rounded-full" />
-                <span>{user.fullName}</span>
-              </div>
-            ))
-          }
-          <button 
-            onClick={() => setAddMemberOpen(false)} 
-            className="w-full mt-3 text-gray-400 text-sm hover:text-white"
-          >
-            Cancel
-          </button>
-        </div>
-      )}
-
-      {/* Remove Member Modal */}
-      {removeMemberOpen && (
-        <div 
-          className="absolute top-16 right-4 bg-[#22223b] shadow-lg rounded-md p-4 max-h-60 overflow-y-auto z-50 min-w-64 border border-gray-700 dropdown-container"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <h4 className="text-white mb-3 font-medium">Remove Member:</h4>
-          {currentChat.members
-            ?.filter(member => member._id !== currentChat.admin && member._id !== authUser?._id)
-            .map(member => (
-              <div 
-                key={member._id} 
-                onClick={() => handleRemoveMember(member._id)}
-                className="flex items-center gap-3 p-2 hover:bg-[#333366] cursor-pointer rounded text-white"
-              >
-                <img src={member.profilePic || assets.avatar_icon} alt="" className="w-8 h-8 rounded-full" />
-                <span>{member.fullName}</span>
-              </div>
-            ))
-          }
-          <button 
-            onClick={() => setRemoveMemberOpen(false)} 
-            className="w-full mt-3 text-gray-400 text-sm hover:text-white"
-          >
-            Cancel
-          </button>
-        </div>
-      )}
-
-      {/* Chat Body */}
-      <div className="flex-1 overflow-y-auto p-4 bg-[#14142b]">
-        {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-gray-500">
-            <img src={assets.logo_icon} className="max-w-20 opacity-50 mb-4" alt="" />
-            <p className="text-lg">No messages yet</p>
-            <p className="text-sm">Start a conversation by sending a message!</p>
-          </div>
-        ) : (
-          messages.map((msg, index) => {
-            const senderIdStr = msg.senderId?._id ? msg.senderId._id.toString() : msg.senderId?.toString() || '';
-            const isSender = senderIdStr === authUser?._id?.toString();
-            const msgDate = msg.createdAt ? new Date(msg.createdAt).toDateString() : new Date().toDateString();
-            const showDateLabel = lastMessageDate !== msgDate;
-            if (showDateLabel) lastMessageDate = msgDate;
-            const isSelected = selectedMsgs.includes(msg._id);
-            const msgReactions = reactions[msg._id] || [];
-
-            return (
-              <React.Fragment key={msg._id || index}>
-                {showDateLabel && (
-                  <div className="flex justify-center my-4">
-                    <span className="text-xs text-gray-400 px-3 py-1 rounded-full bg-[#282142]/40">
-                      {formatChatDate(msg.createdAt)}
-                    </span>
-                  </div>
-                )}
-                
-                {/* Reply Context */}
-                {msg.replyTo && (
-                  <div className={`flex ${isSender ? 'justify-end' : 'justify-start'} mb-1`}>
-                    <div className="text-xs text-gray-400 bg-[#282142]/30 px-3 py-1 rounded-lg max-w-[70%]">
-                      Replying to: {msg.replyTo.text || 'a message'}
-                    </div>
-                  </div>
-                )}
-
-                <div 
-                  className={`flex flex-col mb-3 ${isSender ? "items-end" : "items-start"} ${isSelected ? "bg-[#5555aa]/30 rounded-lg p-2" : ""}`} 
-                  onClick={(e) => toggleSelect(msg._id, e)}
-                  onMouseDown={() => handleMouseDown(msg)}
-                  onMouseUp={handleMouseUp}
-                  onMouseLeave={handleMouseUp}
-                  onTouchStart={() => handleMouseDown(msg)}
-                  onTouchEnd={handleMouseUp}
-                >
-                  {/* Sender name for group messages */}
-                  {isGroup && !isSender && msg.senderId?.fullName && (
-                    <span className="text-xs text-gray-400 mb-1 ml-2">{msg.senderId.fullName}</span>
-                  )}
-
-                  {/* Render Media */}
-                  {msg.media?.map((file, i) => {
-                    if (typeof file !== 'string') return null;
-                    const fileType = getFileType(file);
-                    
-                    return (
-                      <div key={i} className="relative my-1">
-                        {fileType === 'image' ? (
-                          <img 
-                            src={file} 
-                            className="max-w-[280px] rounded-lg border border-gray-700 cursor-pointer" 
-                            alt="Shared media" 
-                            onClick={() => window.open(file, '_blank')}
-                          />
-                        ) : fileType === 'video' ? (
-                          <video 
-                            src={file} 
-                            controls 
-                            className="max-w-[280px] rounded-lg"
-                          >
-                            Your browser does not support the video tag.
-                          </video>
-                        ) : fileType === 'audio' ? (
-                          <audio 
-                            src={file} 
-                            controls 
-                            className="w-full max-w-xs"
-                          >
-                            Your browser does not support the audio element.
-                          </audio>
-                        ) : (
-                          <div className="flex items-center gap-3 p-3 bg-[#282142]/50 rounded-lg">
-                            <span className="text-2xl">{getFileIcon(file)}</span>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-white text-sm truncate">
-                                {file.split("/").pop() || 'Download file'}
-                              </p>
-                              <button 
-                                onClick={() => downloadFile(file, file.split("/").pop())}
-                                className="text-blue-400 hover:text-blue-300 text-xs flex items-center gap-1 mt-1"
-                              >
-                                <FiDownload size={12} />
-                                Download
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-
-                  {/* Render Text */}
-                  {msg.text && (
-                    <div className="relative max-w-[70%]">
-                      <p className={`p-3 break-words text-white rounded-2xl ${isSender ? "bg-violet-600 rounded-br-md" : "bg-[#282142] rounded-bl-md"} ${msg.isEdited ? 'italic' : ''}`}>
-                        {msg.text}
-                        {msg.isEdited && (
-                          <span className="text-xs text-gray-300 ml-2">(edited)</span>
-                        )}
-                      </p>
-                      
-                      {/* Reactions */}
-                      {msgReactions.length > 0 && (
-                        <div className={`flex gap-1 mt-1 ${isSender ? "justify-end" : "justify-start"}`}>
-                          {msgReactions.map((r, i) => (
-                            <span 
-                              key={i} 
-                              className={`text-xs px-2 py-1 rounded-full cursor-pointer ${
-                                r.userId === authUser?._id ? 'bg-violet-600' : 'bg-gray-600'
-                              }`}
-                              onClick={() => {
-                                if (r.userId === authUser?._id) {
-                                  removeReaction(msg._id);
-                                }
-                              }}
-                            >
-                              {r.emoji}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Message Status and Time */}
-                  <div className={`flex items-center gap-2 text-xs text-gray-400 mt-1 ${isSender ? "justify-end" : "justify-start"}`}>
-                    {isSender && (
-                      <>
-                        {msg.status === "sending" && <span className="text-yellow-400">⏳</span>}
-                        {msg.status === "failed" && <span className="text-red-400">❌</span>}
-                        <FaCheckDouble 
-                          className={msg.seen ? "text-blue-400" : msg.status === "delivered" ? "text-gray-400" : "text-gray-600"} 
-                          size={12}
-                        />
-                      </>
-                    )}
-                    <span>{formatMessageDate(msg.createdAt)}</span>
-                  </div>
-                </div>
-
-                {/* Reaction Picker */}
-                {showReactions === msg._id && (
-                  <div 
-                    className={`flex gap-2 p-2 bg-[#22223b] rounded-lg shadow-lg absolute z-50 reaction-picker ${
-                      isSender ? 'right-4' : 'left-4'
-                    }`}
-                    style={{ marginTop: '-40px' }}
-                  >
-                    {quickReactions.map((emoji, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => {
-                          reactToMessage(msg._id, emoji);
-                          setShowReactions(null);
-                        }}
-                        className="text-xl hover:scale-125 transition-transform"
-                      >
-                        {emoji}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </React.Fragment>
-            );
-          })
-        )}
-        <div ref={scrollEnd}></div>
-      </div>
-
-      {/* Group Members List */}
-      {isGroup && showMembers && (
-        <div className="absolute bottom-20 left-0 right-0 bg-[#1c1c2e] p-4 rounded-t-lg border-t border-gray-700 shadow-lg z-30">
-          <div className="flex justify-between items-center mb-3">
-            <h4 className="text-sm font-medium text-white">
-              Group Members ({currentChat.members?.length || 0})
-            </h4>
-            <button 
-              onClick={() => setShowMembers(false)} 
-              className="text-gray-400 hover:text-white"
-            >
-              <IoClose size={20} />
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
-            {currentChat.members?.map(member => (
-              <div 
-                key={member._id} 
-                className="flex items-center gap-2 bg-[#282142]/50 p-2 rounded-lg min-w-0 flex-1 max-w-[48%]"
-              >
-                <img 
-                  src={member.profilePic || assets.avatar_icon} 
-                  alt="" 
-                  className="w-6 h-6 rounded-full flex-shrink-0" 
-                />
-                <span className="text-xs text-white truncate">
-                  {member.fullName}
-                  {member._id === currentChat.admin && " 👑"}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Long Press Options */}
-      {longPressMsg && (
-        <div 
-          className="absolute bottom-24 left-1/2 transform -translate-x-1/2 bg-[#22223b] rounded-lg p-3 z-50 shadow-xl border border-gray-700 dropdown-container"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="flex gap-3 mb-2">
-            <button 
-              onClick={() => handleLongPressAction('react')} 
-              className="flex flex-col items-center text-sm text-red-400 hover:text-red-300"
-            >
-              <FaRegHeart size={16} />
-              <span>React</span>
-            </button>
-            <button 
-              onClick={() => handleLongPressAction('reply')} 
-              className="flex flex-col items-center text-sm text-blue-400 hover:text-blue-300"
-            >
-              <FaReply size={16} />
-              <span>Reply</span>
-            </button>
-            <button 
-              onClick={() => handleLongPressAction('forward')} 
-              className="flex flex-col items-center text-sm text-green-400 hover:text-green-300"
-            >
-              <FaShare size={16} />
-              <span>Forward</span>
-            </button>
-          </div>
-          <div className="flex gap-3 border-t border-gray-600 pt-2">
-            {(longPressMsg.senderId?._id === authUser?._id || longPressMsg.senderId === authUser?._id) && (
-              <button 
-                onClick={() => handleLongPressAction('edit')} 
-                className="flex flex-col items-center text-sm text-yellow-400 hover:text-yellow-300"
-              >
-                <FaEdit size={16} />
-                <span>Edit</span>
-              </button>
-            )}
-            <button 
-              onClick={() => handleLongPressAction('copy')} 
-              className="flex flex-col items-center text-sm text-purple-400 hover:text-purple-300"
-            >
-              <FaCopy size={16} />
-              <span>Copy</span>
-            </button>
-            <button 
-              onClick={() => handleLongPressAction('delete')} 
-              className="flex flex-col items-center text-sm text-red-400 hover:text-red-300"
-            >
-              <FaTrashAlt size={16} />
-              <span>Delete</span>
-            </button>
-          </div>
-          <button 
-            onClick={() => setLongPressMsg(null)} 
-            className="w-full mt-2 text-sm text-gray-400 hover:text-white pt-2 border-t border-gray-600"
-          >
-            Cancel
-          </button>
-        </div>
-      )}
-
-      {/* Reply/Edit Preview */}
-      {(replyingTo || editingMessage) && (
-        <div className="bg-[#282142] border-l-4 border-violet-500 p-3 mx-4 mt-2 rounded-lg">
-          <div className="flex justify-between items-start mb-2">
-            <span className="text-sm text-violet-400 font-medium">
-              {editingMessage ? 'Editing message' : 'Replying to'}
-            </span>
-            <button 
-              onClick={() => {
-                setReplyingTo(null);
-                setEditingMessage(null);
-                if (editingMessage) setInput('');
+      <GradientAppBar 
+        position="static" 
+        elevation={0}
+      >
+        <Toolbar sx={{ py: 1 }}>
+          {isMobile && (
+            <AnimatedIconButton
+              edge="start"
+              color="inherit"
+              onClick={onBack}
+              sx={{ 
+                mr: 1, 
+                color: 'white',
               }}
-              className="text-gray-400 hover:text-white"
             >
-              <MdClose size={18} />
-            </button>
-          </div>
-          <p className="text-sm text-gray-300 truncate">
-            {replyingTo?.text || editingMessage?.text}
-          </p>
-        </div>
+              <ArrowBackIcon />
+            </AnimatedIconButton>
+          )}
+          
+          <Badge
+            color="success"
+            variant="dot"
+            invisible={!onlineUsers.includes(selectedUser._id)}
+            overlap="circular"
+            anchorOrigin={{
+              vertical: 'bottom',
+              horizontal: 'right',
+            }}
+            sx={{
+              '& .MuiBadge-dot': {
+                width: 12,
+                height: 12,
+                borderRadius: '50%',
+                border: `2px solid ${theme.palette.background.paper}`,
+              },
+            }}
+          >
+            <Avatar
+              src={selectedUser.profilePic || selectedUser.image}
+              sx={{ 
+                width: 44, 
+                height: 44, 
+                cursor: 'pointer',
+                border: `2px solid ${alpha(theme.palette.primary.main, 0.3)}`,
+                background: MODERN_COLORS.primary,
+                '&:hover': {
+                  transform: 'scale(1.05)',
+                  transition: 'transform 0.3s ease',
+                }
+              }}
+              onClick={onOpenProfile}
+            >
+              {selectedUser.fullName?.charAt(0) || selectedUser.name?.charAt(0)}
+            </Avatar>
+          </Badge>
+          
+          <Box sx={{ flex: 1, ml: 2, minWidth: 0, cursor: 'pointer' }} onClick={onOpenProfile}>
+            <Typography variant="h6" noWrap fontWeight="600" color="white" sx={{ textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
+              {selectedUser.fullName || selectedUser.name}
+            </Typography>
+            <Box sx={{ color: alpha(theme.palette.common.white, 0.7), fontSize: '0.875rem', noWrap: true }}>
+              {isTyping ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box sx={{ display: 'flex', gap: 0.5 }}>
+                    <Box sx={{ width: 4, height: 4, borderRadius: '50%', background: theme.palette.primary.main, animation: 'bounce 1s infinite' }} />
+                    <Box sx={{ width: 4, height: 4, borderRadius: '50%', background: theme.palette.primary.main, animation: 'bounce 1s infinite 0.1s' }} />
+                    <Box sx={{ width: 4, height: 4, borderRadius: '50%', background: theme.palette.primary.main, animation: 'bounce 1s infinite 0.2s' }} />
+                  </Box>
+                  <span style={{ fontStyle: 'italic', fontSize: '0.8rem' }}>typing...</span>
+                </Box>
+              ) : isGroup ? (
+                `${selectedUser.members?.length || 0} members • ${onlineUsers.filter(id => selectedUser.members?.some(m => m._id === id)).length} online`
+              ) : (
+                onlineUsers.includes(selectedUser._id) ? 
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box sx={{ width: 8, height: 8, borderRadius: '50%', background: MODERN_COLORS.success, animation: 'pulse 2s infinite' }} />
+                  <span>Online</span>
+                </Box> : 
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box sx={{ width: 8, height: 8, borderRadius: '50%', background: alpha(theme.palette.common.white, 0.5) }} />
+                  <span>Offline</span>
+                </Box>
+              )}
+            </Box>
+          </Box>
+
+          {/* Header Actions */}
+          <Box sx={{ display: 'flex', gap: 0.5 }}>
+            <Tooltip title="Search Messages" arrow>
+              <AnimatedIconButton 
+                onClick={() => setIsSearching(!isSearching)}
+                sx={{ 
+                  color: isSearching ? 'primary.main' : 'white',
+                  background: isSearching ? alpha(theme.palette.primary.main, 0.2) : 'transparent',
+                }}
+              >
+                <SearchIcon />
+              </AnimatedIconButton>
+            </Tooltip>
+
+            <Tooltip title={isSelectMode ? "Exit Selection" : "Select Messages"} arrow>
+              <AnimatedIconButton 
+                onClick={() => setIsSelectMode(!isSelectMode)}
+                sx={{ 
+                  color: isSelectMode ? 'primary.main' : 'white',
+                  background: isSelectMode ? alpha(theme.palette.primary.main, 0.2) : 'transparent',
+                }}
+              >
+                <SelectAllIcon />
+              </AnimatedIconButton>
+            </Tooltip>
+
+            <Tooltip title="More Options" arrow>
+              <AnimatedIconButton 
+                onClick={(e) => setMoreOptionsAnchor(e.currentTarget)}
+                sx={{ color: 'white' }}
+              >
+                <MoreVertIcon />
+              </AnimatedIconButton>
+            </Tooltip>
+
+            <Tooltip title="View Profile" arrow>
+              <AnimatedIconButton 
+                onClick={onOpenProfile} 
+                sx={{ color: 'white' }}
+              >
+                <PersonIcon />
+              </AnimatedIconButton>
+            </Tooltip>
+          </Box>
+        </Toolbar>
+
+        {/* Search Bar */}
+        {isSearching && (
+          <Collapse in={isSearching}>
+            <Box sx={{ px: 2, pb: 1 }}>
+              <ModernTextField
+                fullWidth
+                size="small"
+                placeholder="Search messages..."
+                value={searchQuery}
+                onChange={(e) => handleSearch(e.target.value)}
+                InputProps={{
+                  startAdornment: <SearchIcon sx={{ color: alpha(theme.palette.common.white, 0.5), mr: 1 }} />,
+                  endAdornment: searchQuery && (
+                    <IconButton
+                      size="small"
+                      onClick={() => handleSearch('')}
+                      sx={{ color: alpha(theme.palette.common.white, 0.5) }}
+                    >
+                      <CloseIcon />
+                    </IconButton>
+                  ),
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    background: alpha(theme.palette.common.white, 0.05),
+                  },
+                }}
+              />
+              {searchQuery && (
+                <Typography variant="caption" sx={{ color: alpha(theme.palette.common.white, 0.7), mt: 0.5, display: 'block' }}>
+                  {filteredMessages.length} result{filteredMessages.length !== 1 ? 's' : ''} found
+                </Typography>
+              )}
+            </Box>
+          </Collapse>
+        )}
+      </GradientAppBar>
+
+      {/* Messages Area */}
+      <Box
+        ref={scrollContainerRef}
+        sx={{
+          flex: 1,
+          overflow: 'auto',
+          p: 1,
+          background: 'transparent',
+          position: 'relative',
+          '&::-webkit-scrollbar': {
+            width: 8,
+          },
+          '&::-webkit-scrollbar-track': {
+            background: 'transparent',
+          },
+          '&::-webkit-scrollbar-thumb': {
+            background: MODERN_COLORS.primary,
+            borderRadius: 4,
+            '&:hover': {
+              background: MODERN_COLORS.secondary,
+            },
+          },
+        }}
+      >
+        {messageError && (
+          <Slide direction="down" in={!!messageError}>
+            <Alert 
+              severity="error" 
+              sx={{ 
+                m: 2, 
+                background: alpha(theme.palette.error.main, 0.1),
+                backdropFilter: 'blur(10px)',
+                border: `1px solid ${alpha(theme.palette.error.main, 0.2)}`,
+                color: 'error.light',
+                borderRadius: '12px',
+              }}
+              action={
+                <Button 
+                  size="small" 
+                  onClick={() => loadMessages(true)} 
+                  sx={{ color: 'error.light' }}
+                >
+                  Retry
+                </Button>
+              }
+            >
+              {messageError}
+            </Alert>
+          </Slide>
+        )}
+
+        {displayMessages.length === 0 ? (
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: '100%',
+              color: alpha(theme.palette.common.white, 0.7),
+              textAlign: 'center',
+              p: 3,
+            }}
+          >
+            <Box
+              sx={{
+                background: MODERN_COLORS.glass,
+                backdropFilter: 'blur(20px)',
+                borderRadius: '24px',
+                p: 4,
+                border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
+                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
+                maxWidth: 400,
+              }}
+            >
+              {isSearching ? (
+                <>
+                  <SmsFailedIcon sx={{ fontSize: 64, mb: 2, opacity: 0.5, color: 'primary.main' }} />
+                  <Typography variant="h5" gutterBottom color="white" fontWeight="bold">
+                    No results found
+                  </Typography>
+                  <Typography variant="body1" color={alpha(theme.palette.common.white, 0.6)}>
+                    No messages match your search criteria
+                  </Typography>
+                </>
+              ) : (
+                <>
+                  <CelebrationIcon sx={{ fontSize: 64, mb: 2, opacity: 0.5, color: 'primary.main' }} />
+                  <Typography variant="h5" gutterBottom color="white" fontWeight="bold">
+                    No messages yet
+                  </Typography>
+                  <Typography variant="body1" color={alpha(theme.palette.common.white, 0.6)}>
+                    Start the conversation by sending a message!
+                  </Typography>
+                  {!isOnline && (
+                    <Typography variant="caption" color="warning.main" sx={{ mt: 2, display: 'block' }}>
+                      You are offline. Connect to the internet to send messages.
+                    </Typography>
+                  )}
+                </>
+              )}
+            </Box>
+          </Box>
+        ) : (
+          displayMessages.map((message, index) => (
+            <MessageBubble
+              key={message._id || `message-${index}-${Date.now()}`}
+              message={message}
+              isOwnMessage={message.senderId?._id === authUser._id || message.senderId === authUser._id}
+              isGroup={isGroup}
+              selectedMessages={selectedMessages}
+              isSelectMode={isSelectMode}
+              toggleMessageSelection={toggleMessageSelection}
+              reactToMessage={handleReactToMessage}
+              removeReaction={handleRemoveReaction}
+              getFileType={getFileType}
+              getFileIcon={getFileIcon}
+              downloadFile={downloadFile}
+              playingAudio={playingAudio}
+              handlePlayAudio={handlePlayAudio}
+              authUser={authUser}
+              theme={theme}
+              onMessageMenuOpen={handleMessageMenuOpen}
+              onPinMessage={pinMessage}
+              isPinned={pinnedMessages.some(pm => pm._id === message._id)}
+            />
+          ))
+        )}
+        
+        {isTyping && (
+          <Box sx={{ display: 'flex', justifyContent: 'flex-start', px: 2, mb: 2 }}>
+            <GlassPaper
+              sx={{
+                p: 2,
+                background: alpha(theme.palette.primary.main, 0.1),
+                borderRadius: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1.5,
+                boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+                animation: 'pulse 2s infinite',
+              }}
+            >
+              <Box sx={{ display: 'flex', gap: 0.5 }}>
+                <Box sx={{ width: 6, height: 6, borderRadius: '50%', background: theme.palette.primary.main, animation: 'bounce 1s infinite' }} />
+                <Box sx={{ width: 6, height: 6, borderRadius: '50%', background: theme.palette.primary.main, animation: 'bounce 1s infinite 0.1s' }} />
+                <Box sx={{ width: 6, height: 6, borderRadius: '50%', background: theme.palette.primary.main, animation: 'bounce 1s infinite 0.2s' }} />
+              </Box>
+              <Typography variant="body2" color={alpha(theme.palette.common.white, 0.8)} sx={{ fontStyle: 'italic' }}>
+                typing...
+              </Typography>
+            </GlassPaper>
+          </Box>
+        )}
+        
+        <div ref={messagesEndRef} />
+      </Box>
+
+      {/* AI Assistant */}
+      {showAIAssistant && (
+        <AIAssistant onAIAction={handleAIAction} theme={theme} />
+      )}
+
+      {/* Selection Actions Bar */}
+      <SelectionActionsBar
+        selectedCount={selectedMessages.size}
+        clearSelection={clearSelection}
+        deleteSelected={deleteSelectedMessages}
+        forwardSelected={() => {
+          setForwardDialogOpen(true);
+          loadUsersForForward();
+        }}
+        downloadSelected={downloadSelectedMessages}
+        replyToSelected={replyToSelectedMessages}
+        pinSelected={pinSelectedMessage}
+        copySelected={copySelectedMessages}
+      />
+
+      {/* Reply Preview */}
+      {replyingTo && (
+        <Slide direction="up" in={!!replyingTo}>
+          <GlassPaper
+            variant="outlined"
+            sx={{
+              m: 2,
+              mb: 1,
+              p: 2,
+              background: alpha(theme.palette.primary.main, 0.1),
+              borderLeft: `3px solid ${theme.palette.primary.main}`,
+              borderRadius: '16px',
+              border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
+              animation: 'slideIn 0.3s ease',
+              '@keyframes slideIn': {
+                '0%': { transform: 'translateY(20px)', opacity: 0 },
+                '100%': { transform: 'translateY(0)', opacity: 1 },
+              },
+            }}
+          >
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="caption" color="primary" fontWeight="bold" fontSize="0.75rem">
+                  Replying to {replyingTo.senderId?._id === authUser._id ? 'yourself' : replyingTo.senderId?.fullName}
+                </Typography>
+                <Typography variant="body2" noWrap sx={{ color: alpha(theme.palette.common.white, 0.8), fontSize: '0.85rem', mt: 0.5 }}>
+                  {replyingTo.text || 'Media message'}
+                </Typography>
+              </Box>
+              <AnimatedIconButton size="small" onClick={() => setReplyingTo(null)} sx={{ color: 'white' }}>
+                <ClearIcon fontSize="small" />
+              </AnimatedIconButton>
+            </Box>
+          </GlassPaper>
+        </Slide>
+      )}
+
+      {/* Edit Preview */}
+      {editingMessage && (
+        <Slide direction="up" in={!!editingMessage}>
+          <GlassPaper
+            variant="outlined"
+            sx={{
+              m: 2,
+              mb: 1,
+              p: 2,
+              background: alpha(theme.palette.warning.main, 0.1),
+              borderLeft: `3px solid ${theme.palette.warning.main}`,
+              borderRadius: '16px',
+              border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
+              animation: 'slideIn 0.3s ease',
+            }}
+          >
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="caption" color="warning.main" fontWeight="bold" fontSize="0.75rem">
+                  Editing message
+                </Typography>
+                <Typography variant="body2" noWrap sx={{ color: alpha(theme.palette.common.white, 0.8), fontSize: '0.85rem', mt: 0.5 }}>
+                  {editingMessage.text}
+                </Typography>
+              </Box>
+              <AnimatedIconButton 
+                size="small" 
+                onClick={() => {
+                  setEditingMessage(null);
+                  setInput('');
+                }}
+                sx={{ color: 'white' }}
+              >
+                <ClearIcon fontSize="small" />
+              </AnimatedIconButton>
+            </Box>
+          </GlassPaper>
+        </Slide>
       )}
 
       {/* Input Area */}
-      <div className="bg-[#1c1c2e] border-t border-gray-700 p-4">
-        {/* Media Preview */}
+      <GlassPaper
+        elevation={0}
+        sx={{
+          p: 2,
+          borderRadius: 0,
+          borderTop: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
+          background: MODERN_COLORS.glassDark,
+          backdropFilter: 'blur(20px)',
+          position: 'relative',
+        }}
+      >
+        {/* File Preview */}
         {mediaFiles.length > 0 && (
-          <div className="flex gap-2 mb-3 overflow-x-auto pb-2">
-            {Array.from(mediaFiles).map((file, index) => (
-              <div key={index} className="relative">
-                {file.type.startsWith('image') ? (
-                  <img 
-                    src={URL.createObjectURL(file)} 
-                    alt="Preview" 
-                    className="w-16 h-16 rounded object-cover"
-                  />
-                ) : (
-                  <div className="w-16 h-16 rounded bg-[#282142] flex items-center justify-center">
-                    <span className="text-xs text-white truncate px-1">
+          <Box sx={{ mb: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            {mediaFiles.map((file, index) => (
+              <Chip
+                key={index}
+                icon={getFileIcon(file.name)}
+                label={
+                  <Box>
+                    <Typography variant="caption" display="block" noWrap sx={{ maxWidth: 120, color: 'white', fontWeight: 500 }}>
                       {file.name}
-                    </span>
-                  </div>
-                )}
-                {uploadProgress[index] !== undefined && uploadProgress[index] < 100 && (
-                  <div className="absolute inset-0 bg-black/50 rounded flex items-center justify-center">
-                    <div className="text-xs text-white">{uploadProgress[index]}%</div>
-                  </div>
-                )}
-                <button 
-                  onClick={() => setMediaFiles(prev => prev.filter((_, i) => i !== index))}
-                  className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
-                >
-                  ✕
-                </button>
-              </div>
+                    </Typography>
+                    {uploadProgress[index] !== undefined && (
+                      <LinearProgress 
+                        variant="determinate" 
+                        value={uploadProgress[index]} 
+                        sx={{ 
+                          width: 60, 
+                          height: 4, 
+                          borderRadius: 2,
+                          background: alpha(theme.palette.common.white, 0.2),
+                          '& .MuiLinearProgress-bar': {
+                            background: MODERN_COLORS.primary,
+                          }
+                        }}
+                      />
+                    )}
+                  </Box>
+                }
+                onDelete={() => {
+                  setMediaFiles(prev => prev.filter((_, i) => i !== index));
+                  setUploadProgress(prev => {
+                    const newProgress = { ...prev };
+                    delete newProgress[index];
+                    return newProgress;
+                  });
+                }}
+                variant="outlined"
+                sx={{ 
+                  maxWidth: 200,
+                  borderRadius: '16px',
+                  border: `1px solid ${alpha(theme.palette.common.white, 0.2)}`,
+                  color: 'white',
+                  background: MODERN_COLORS.glass,
+                  backdropFilter: 'blur(10px)',
+                  '& .MuiChip-deleteIcon': {
+                    color: alpha(theme.palette.common.white, 0.7),
+                    '&:hover': {
+                      color: 'white',
+                    }
+                  },
+                  '&:hover': {
+                    background: alpha(theme.palette.common.white, 0.15),
+                  }
+                }}
+              />
             ))}
-          </div>
+          </Box>
         )}
 
-        <form onSubmit={handleSendMessage} className="flex items-center gap-3">
-          <button 
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowEmoji(!showEmoji);
-            }} 
-            className="text-xl text-gray-400 hover:text-white transition-colors"
-          >
-            <FaSmile />
-          </button>
-          
-          {showEmoji && (
-            <div className="absolute bottom-16 left-4 z-50">
-              <EmojiPicker 
-                onEmojiClick={(emojiObj) => setInput(prev => prev + emojiObj.emoji)}
-                width={300}
-                height={400}
-                className="emoji-picker-react"
-              />
-            </div>
-          )}
+        <Box
+          component="form"
+          onSubmit={handleSendMessage}
+          sx={{ display: 'flex', alignItems: 'flex-end', gap: 1.5 }}
+        >
+          {/* AI Assistant Toggle */}
+          <Tooltip title="AI Assistant" arrow>
+            <AnimatedIconButton 
+              onClick={() => setShowAIAssistant(!showAIAssistant)}
+              sx={{
+                background: showAIAssistant ? MODERN_COLORS.ai : 'transparent',
+                color: 'white',
+                '&:hover': {
+                  background: MODERN_COLORS.ai,
+                }
+              }}
+            >
+              <AIIcon />
+            </AnimatedIconButton>
+          </Tooltip>
 
-          <input
-            type="text"
-            placeholder={editingMessage ? "Edit your message..." : "Type a message..."}
-            value={input}
-            onChange={handleTyping}
-            className="flex-1 text-sm p-3 border border-gray-600 rounded-lg outline-none text-white placeholder-gray-400 bg-[#282142] focus:border-violet-500 transition-colors"
-          />
+          {/* Attachment Button */}
+          <Tooltip title="Attach files" arrow>
+            <AnimatedIconButton 
+              onClick={() => fileInputRef.current?.click()}
+              sx={{
+                background: MODERN_COLORS.secondary,
+                color: 'white',
+                '&:hover': {
+                  background: MODERN_COLORS.primary,
+                }
+              }}
+            >
+              <AttachFileIcon />
+            </AnimatedIconButton>
+          </Tooltip>
 
           <input
             ref={fileInputRef}
             type="file"
             multiple
             onChange={handleFileSelect}
-            className="hidden"
-            id="mediaUpload"
+            style={{ display: 'none' }}
             accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt,.zip"
           />
-          <label 
-            htmlFor="mediaUpload" 
-            className="cursor-pointer text-gray-400 hover:text-white text-xl transition-colors"
-            title="Attach files"
-          >
-            <MdAttachFile size={20} />
-          </label>
 
-          {isRecordingSupported && (
-            <button 
-              type="button"
-              onClick={toggleVoiceRecord} 
-              className={`text-xl transition-colors ${recording ? 'text-red-500 animate-pulse' : 'text-gray-400 hover:text-white'}`}
-              title={recording ? "Stop recording" : "Voice message"}
+          {/* Emoji Picker */}
+          {showEmoji && (
+            <Box 
+              sx={{ 
+                position: 'absolute', 
+                bottom: '100%', 
+                left: isMobile ? 0 : 'auto',
+                right: isMobile ? 'auto' : 0,
+                zIndex: 10,
+                mb: 2,
+                animation: 'slideUp 0.3s ease',
+                '@keyframes slideUp': {
+                  '0%': { transform: 'translateY(10px)', opacity: 0 },
+                  '100%': { transform: 'translateY(0)', opacity: 1 },
+                },
+              }}
             >
-              <FaMicrophone />
-            </button>
+              <Picker
+                onSelect={(emoji) => {
+                  setInput(prev => prev + emoji.native);
+                  inputRef.current?.focus();
+                }}
+                theme="dark"
+                set="apple"
+                showPreview={false}
+                showSkinTones={false}
+                onClickOutside={() => setShowEmoji(false)}
+              />
+            </Box>
           )}
 
-          <button 
+          <Tooltip title="Add emoji" arrow>
+            <AnimatedIconButton
+              onClick={() => setShowEmoji(!showEmoji)}
+              sx={{
+                background: showEmoji ? MODERN_COLORS.primary : 'transparent',
+                color: showEmoji ? 'white' : alpha(theme.palette.common.white, 0.7),
+                '&:hover': {
+                  background: MODERN_COLORS.primary,
+                  color: 'white',
+                }
+              }}
+            >
+              <EmojiIcon />
+            </AnimatedIconButton>
+          </Tooltip>
+
+          <ModernTextField
+            inputRef={inputRef}
+            fullWidth
+            multiline
+            maxRows={4}
+            value={input}
+            onChange={handleTyping}
+            placeholder={editingMessage ? "Edit your message..." : "Type a message..."}
+            variant="outlined"
+            size="small"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSendMessage(e);
+              }
+            }}
+            disabled={!isOnline}
+          />
+
+          {isRecordingSupported && (
+            <Tooltip title={recording ? "Stop recording" : "Voice message"} arrow>
+              <AnimatedIconButton
+                onClick={handleVoiceRecord}
+                disabled={!isOnline}
+                sx={{
+                  background: recording ? MODERN_COLORS.error : 'transparent',
+                  color: recording ? 'white' : alpha(theme.palette.common.white, 0.7),
+                  animation: recording ? 'pulse 1s infinite' : 'none',
+                  '&:hover': {
+                    background: recording ? MODERN_COLORS.error : MODERN_COLORS.primary,
+                    color: 'white',
+                  },
+                  '&:disabled': {
+                    background: 'transparent',
+                    color: alpha(theme.palette.common.white, 0.3),
+                  },
+                  '@keyframes pulse': {
+                    '0%': { transform: 'scale(1)' },
+                    '50%': { transform: 'scale(1.1)' },
+                    '100%': { transform: 'scale(1)' },
+                  }
+                }}
+              >
+                <MicIcon />
+              </AnimatedIconButton>
+            </Tooltip>
+          )}
+
+          <FloatingActionButton
+            color="primary"
+            size="medium"
             type="submit"
-            disabled={!input.trim() && !mediaFiles.length}
-            className={`p-3 rounded-full transition-colors ${
-              !input.trim() && !mediaFiles.length 
-                ? 'bg-gray-600 text-gray-400 cursor-not-allowed' 
-                : 'bg-violet-600 text-white hover:bg-violet-700'
-            }`}
+            disabled={(!input.trim() && mediaFiles.length === 0) || recording || !isOnline}
           >
-            {editingMessage ? <FaEdit size={16} /> : <IoSend size={16} />}
-          </button>
-        </form>
-      </div>
-    </div>
+            {editingMessage ? <EditIcon /> : <SendIcon />}
+          </FloatingActionButton>
+        </Box>
+      </GlassPaper>
+
+      {/* ============ DIALOGS AND MENUS ============ */}
+
+      {/* Message Context Menu */}
+      <Menu
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={handleMessageMenuClose}
+        onClick={handleMessageMenuClose}
+        transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+        anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+        PaperProps={{
+          sx: {
+            background: MODERN_COLORS.glassDark,
+            backdropFilter: 'blur(20px)',
+            border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
+            borderRadius: '12px',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+            color: 'white',
+            '& .MuiMenuItem-root': {
+              '&:hover': {
+                background: alpha(theme.palette.common.white, 0.1),
+              },
+            },
+            animation: 'scaleIn 0.2s ease',
+            '@keyframes scaleIn': {
+              '0%': { transform: 'scale(0.95)', opacity: 0 },
+              '100%': { transform: 'scale(1)', opacity: 1 },
+            },
+          }
+        }}
+      >
+        <MenuItem onClick={() => handleMessageAction('reply')}>
+          <ListItemIcon>
+            <ReplyIcon fontSize="small" sx={{ color: 'white' }} />
+          </ListItemIcon>
+          <ListItemText primary="Reply" />
+        </MenuItem>
+        
+        <MenuItem onClick={() => handleMessageAction('select')}>
+          <ListItemIcon>
+            <SelectAllIcon fontSize="small" sx={{ color: 'white' }} />
+          </ListItemIcon>
+          <ListItemText primary="Select" />
+        </MenuItem>
+
+        <MenuItem onClick={() => handleMessageAction('copy')}>
+          <ListItemIcon>
+            <CopyIcon fontSize="small" sx={{ color: 'white' }} />
+          </ListItemIcon>
+          <ListItemText primary="Copy Text" />
+        </MenuItem>
+        
+        {selectedMessage?.senderId?._id === authUser._id && (
+          <MenuItem onClick={() => handleMessageAction('edit')}>
+            <ListItemIcon>
+              <EditIcon fontSize="small" sx={{ color: 'white' }} />
+            </ListItemIcon>
+            <ListItemText primary="Edit" />
+          </MenuItem>
+        )}
+        
+        <MenuItem onClick={() => handleMessageAction('forward')}>
+          <ListItemIcon>
+            <ForwardIcon fontSize="small" sx={{ color: 'white' }} />
+          </ListItemIcon>
+          <ListItemText primary="Forward" />
+        </MenuItem>
+
+        {pinnedMessages.some(pm => pm._id === selectedMessage?._id) ? (
+          <MenuItem onClick={() => handleMessageAction('unpin')}>
+            <ListItemIcon>
+              <LabelIcon fontSize="small" sx={{ color: 'warning.main' }} />
+            </ListItemIcon>
+            <ListItemText primary="Unpin Message" />
+          </MenuItem>
+        ) : (
+          <MenuItem onClick={() => handleMessageAction('pin')}>
+            <ListItemIcon>
+              <LabelIcon fontSize="small" sx={{ color: 'warning.main' }} />
+            </ListItemIcon>
+            <ListItemText primary="Pin Message" />
+          </MenuItem>
+        )}
+        
+        {selectedMessage?.senderId?._id === authUser._id && (
+          <MenuItem 
+            onClick={() => handleMessageAction('delete')}
+            sx={{ color: 'error.main' }}
+          >
+            <ListItemIcon>
+              <DeleteIcon fontSize="small" color="error" />
+            </ListItemIcon>
+            <ListItemText primary="Delete" />
+          </MenuItem>
+        )}
+      </Menu>
+
+      {/* More Options Menu */}
+      <Menu
+        anchorEl={moreOptionsAnchor}
+        open={Boolean(moreOptionsAnchor)}
+        onClose={() => setMoreOptionsAnchor(null)}
+        PaperProps={{
+          sx: {
+            background: MODERN_COLORS.glassDark,
+            backdropFilter: 'blur(20px)',
+            border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
+            borderRadius: '12px',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+            color: 'white',
+            '& .MuiMenuItem-root': {
+              '&:hover': {
+                background: alpha(theme.palette.common.white, 0.1),
+              },
+            },
+            animation: 'scaleIn 0.2s ease',
+          }
+        }}
+      >
+        <MenuItem onClick={() => {
+          setIsSelectMode(true);
+          setMoreOptionsAnchor(null);
+        }}>
+          <ListItemIcon>
+            <SelectAllIcon fontSize="small" sx={{ color: 'white' }} />
+          </ListItemIcon>
+          <ListItemText primary="Select Messages" />
+        </MenuItem>
+
+        <MenuItem onClick={() => {
+          setClearChatDialogOpen(true);
+          setMoreOptionsAnchor(null);
+        }}>
+          <ListItemIcon>
+            <ClearAllIcon fontSize="small" sx={{ color: 'white' }} />
+          </ListItemIcon>
+          <ListItemText primary="Clear Chat" />
+        </MenuItem>
+
+        <MenuItem onClick={() => {
+          toast.success("Chat archived");
+          setMoreOptionsAnchor(null);
+        }}>
+          <ListItemIcon>
+            <ArchiveIcon fontSize="small" sx={{ color: 'white' }} />
+          </ListItemIcon>
+          <ListItemText primary="Archive Chat" />
+        </MenuItem>
+
+        <MenuItem onClick={() => {
+          toast.success("Chat muted");
+          setMoreOptionsAnchor(null);
+        }}>
+          <ListItemIcon>
+            <VolumeOffIcon fontSize="small" sx={{ color: 'white' }} />
+          </ListItemIcon>
+          <ListItemText primary="Mute Notifications" />
+        </MenuItem>
+
+        <Divider sx={{ backgroundColor: alpha(theme.palette.common.white, 0.1), my: 1 }} />
+
+        <MenuItem onClick={() => {
+          toast.success("Chat reported");
+          setMoreOptionsAnchor(null);
+        }} sx={{ color: 'error.main' }}>
+          <ListItemIcon>
+            <ReportIcon fontSize="small" color="error" />
+          </ListItemIcon>
+          <ListItemText primary="Report Chat" />
+        </MenuItem>
+      </Menu>
+
+      {/* Forward Dialog */}
+      <Dialog
+        open={forwardDialogOpen}
+        onClose={() => setForwardDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: '20px',
+            background: MODERN_COLORS.glassDark,
+            backdropFilter: 'blur(20px)',
+            border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.4)',
+            color: 'white',
+            animation: 'scaleIn 0.3s ease',
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          color: 'white', 
+          textAlign: 'center',
+          background: MODERN_COLORS.primary,
+          backgroundClip: 'text',
+          textFillColor: 'transparent',
+          fontWeight: 'bold',
+          fontSize: '1.25rem',
+        }}>
+          Forward {selectedMessages.size} Message{selectedMessages.size > 1 ? 's' : ''}
+          <IconButton
+            aria-label="close"
+            onClick={() => setForwardDialogOpen(false)}
+            sx={{
+              position: 'absolute',
+              right: 12,
+              top: 12,
+              color: 'white',
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ p: 3 }}>
+          <Typography variant="body2" sx={{ mb: 2, color: alpha(theme.palette.common.white, 0.7), textAlign: 'center' }}>
+            Select recipients to forward to:
+          </Typography>
+          
+          <List sx={{ maxHeight: 300, overflow: 'auto' }}>
+            {usersForForward.map((user) => (
+              <ListItem
+                key={user._id}
+                sx={{
+                  borderRadius: '12px',
+                  mb: 1,
+                  background: selectedForwardUsers.has(user._id) 
+                    ? alpha(theme.palette.primary.main, 0.2) 
+                    : MODERN_COLORS.glass,
+                  backdropFilter: 'blur(10px)',
+                  border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    background: alpha(theme.palette.common.white, 0.1),
+                    transform: 'translateX(4px)',
+                  },
+                }}
+              >
+                <ListItemAvatar>
+                  <Avatar 
+                    src={user.profilePic} 
+                    sx={{ 
+                      width: 44, 
+                      height: 44,
+                      border: `2px solid ${alpha(theme.palette.primary.main, 0.3)}`,
+                    }}
+                  >
+                    {user.fullName?.charAt(0)}
+                  </Avatar>
+                </ListItemAvatar>
+                <ListItemText 
+                  primary={user.fullName} 
+                  secondary={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Box 
+                        sx={{ 
+                          width: 8, 
+                          height: 8, 
+                          borderRadius: '50%', 
+                          background: onlineUsers.includes(user._id) ? MODERN_COLORS.success : alpha(theme.palette.common.white, 0.5),
+                          animation: onlineUsers.includes(user._id) ? 'pulse 2s infinite' : 'none',
+                        }} 
+                      />
+                      {onlineUsers.includes(user._id) ? 'Online' : 'Offline'}
+                    </Box>
+                  }
+                  primaryTypographyProps={{ 
+                    color: 'white', 
+                    fontWeight: 600,
+                    fontSize: '0.95rem',
+                  }}
+                  secondaryTypographyProps={{ 
+                    color: alpha(theme.palette.common.white, 0.7),
+                    fontSize: '0.8rem',
+                  }}
+                />
+                <AnimatedIconButton
+                  onClick={() => toggleForwardUserSelection(user._id)}
+                  sx={{
+                    color: selectedForwardUsers.has(user._id) ? 'primary.main' : 'white',
+                  }}
+                >
+                  {selectedForwardUsers.has(user._id) ? <CheckCircleIcon /> : <CheckCircleIcon sx={{ opacity: 0.5 }} />}
+                </AnimatedIconButton>
+              </ListItem>
+            ))}
+          </List>
+          
+          {usersForForward.length === 0 && (
+            <Typography 
+              variant="body2" 
+              textAlign="center" 
+              sx={{ 
+                color: alpha(theme.palette.common.white, 0.5), 
+                py: 4,
+                fontStyle: 'italic',
+              }}
+            >
+              No available contacts to forward to
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 3, gap: 2 }}>
+          <Button 
+            onClick={() => setForwardDialogOpen(false)}
+            sx={{ 
+              color: 'white',
+              background: MODERN_COLORS.glass,
+              backdropFilter: 'blur(10px)',
+              border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
+              borderRadius: '12px',
+              px: 3,
+              '&:hover': {
+                background: alpha(theme.palette.common.white, 0.1),
+              },
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={forwardSelectedMessages}
+            disabled={selectedForwardUsers.size === 0}
+            sx={{
+              background: MODERN_COLORS.primary,
+              backdropFilter: 'blur(10px)',
+              border: `1px solid ${alpha(theme.palette.common.white, 0.2)}`,
+              borderRadius: '12px',
+              px: 3,
+              fontWeight: 'bold',
+              '&:hover': {
+                background: MODERN_COLORS.secondary,
+                transform: 'translateY(-2px)',
+                boxShadow: '0 8px 25px rgba(102, 126, 234, 0.3)',
+              },
+              '&:disabled': {
+                background: alpha(theme.palette.common.white, 0.1),
+                color: alpha(theme.palette.common.white, 0.3),
+              },
+              transition: 'all 0.3s ease',
+            }}
+          >
+            Forward
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Clear Chat Dialog */}
+      <Dialog
+        open={clearChatDialogOpen}
+        onClose={() => setClearChatDialogOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: '20px',
+            background: MODERN_COLORS.glassDark,
+            backdropFilter: 'blur(20px)',
+            border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.4)',
+            color: 'white',
+            animation: 'scaleIn 0.3s ease',
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          color: 'white', 
+          textAlign: 'center',
+          fontWeight: 'bold',
+          fontSize: '1.25rem',
+        }}>
+          Clear Chat
+        </DialogTitle>
+        <DialogContent sx={{ textAlign: 'center', p: 3 }}>
+          <Box
+            sx={{
+              width: 80,
+              height: 80,
+              borderRadius: '50%',
+              background: alpha(theme.palette.error.main, 0.1),
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px',
+              border: `2px solid ${alpha(theme.palette.error.main, 0.3)}`,
+            }}
+          >
+            <DeleteIcon sx={{ fontSize: 40, color: 'error.main' }} />
+          </Box>
+          <Typography variant="body2" sx={{ color: alpha(theme.palette.common.white, 0.8), lineHeight: 1.6 }}>
+            Are you sure you want to clear this chat? This action cannot be undone and will remove all messages from your view.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 3, gap: 2 }}>
+          <Button 
+            onClick={() => setClearChatDialogOpen(false)}
+            sx={{ 
+              color: 'white',
+              background: MODERN_COLORS.glass,
+              backdropFilter: 'blur(10px)',
+              border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
+              borderRadius: '12px',
+              px: 3,
+              flex: 1,
+              '&:hover': {
+                background: alpha(theme.palette.common.white, 0.1),
+              },
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={clearChat}
+            color="error"
+            sx={{
+              background: MODERN_COLORS.error,
+              backdropFilter: 'blur(10px)',
+              border: `1px solid ${alpha(theme.palette.error.main, 0.3)}`,
+              borderRadius: '12px',
+              px: 3,
+              flex: 1,
+              fontWeight: 'bold',
+              '&:hover': {
+                background: '#d32f2f',
+                transform: 'translateY(-2px)',
+                boxShadow: '0 8px 25px rgba(244, 67, 54, 0.3)',
+              },
+              transition: 'all 0.3s ease',
+            }}
+          >
+            Clear Chat
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Upload Snackbar */}
+      <Snackbar
+        open={uploadSnackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setUploadSnackbar({ open: false, message: '' })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        TransitionComponent={Slide}
+      >
+        <Alert 
+          severity="info"
+          icon={false}
+          sx={{
+            background: MODERN_COLORS.primary,
+            backdropFilter: 'blur(20px)',
+            border: `1px solid ${alpha(theme.palette.common.white, 0.2)}`,
+            borderRadius: '12px',
+            color: 'white',
+            boxShadow: '0 8px 32px rgba(102, 126, 234, 0.3)',
+            '& .MuiAlert-message': {
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+            },
+          }}
+          action={
+            <IconButton
+              size="small"
+              aria-label="close"
+              color="inherit"
+              onClick={() => setUploadSnackbar({ open: false, message: '' })}
+            >
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          }
+        >
+          <CircularProgress size={16} sx={{ color: 'white' }} />
+          {uploadSnackbar.message}
+        </Alert>
+      </Snackbar>
+
+      {/* CSS Animations */}
+     <GlobalStyles
+  styles={{
+    '@keyframes bounce': {
+      '0%, 100%': { transform: 'translateY(0)' },
+      '50%': { transform: 'translateY(-5px)' },
+    },
+    '@keyframes pulse': {
+      '0%, 100%': { opacity: 1 },
+      '50%': { opacity: 0.5 },
+    },
+    '@keyframes float': {
+      '0%, 100%': { transform: 'translateY(0px)' },
+      '50%': { transform: 'translateY(-10px)' },
+    },
+  }}
+/>
+    </Box>
   );
 };
 

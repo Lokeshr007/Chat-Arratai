@@ -1,4 +1,3 @@
-// models/User.js - Add friend system fields
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 
@@ -7,7 +6,6 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: [true, "Full name is required"],
     trim: true,
-    minlength: [2, "Full name must be at least 2 characters"],
     maxlength: [50, "Full name cannot exceed 50 characters"]
   },
   username: {
@@ -15,20 +13,17 @@ const userSchema = new mongoose.Schema({
     required: [true, "Username is required"],
     unique: true,
     trim: true,
+    lowercase: true,
     minlength: [3, "Username must be at least 3 characters"],
-    maxlength: [20, "Username cannot exceed 20 characters"],
-    match: [/^[a-zA-Z0-9_]+$/, "Username can only contain letters, numbers and underscores"]
+    maxlength: [20, "Username cannot exceed 20 characters"]
   },
   email: {
     type: String,
     required: [true, "Email is required"],
     unique: true,
-    trim: true,
     lowercase: true,
-    match: [
-      /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/,
-      "Please enter a valid email"
-    ]
+    trim: true,
+    match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, "Please enter a valid email"]
   },
   password: {
     type: String,
@@ -44,20 +39,24 @@ const userSchema = new mongoose.Schema({
     enum: ['active', 'inactive', 'suspended'],
     default: 'active'
   },
+  lastSeen: {
+    type: Date,
+    default: Date.now
+  },
   emailVerified: {
     type: Boolean,
     default: false
   },
   verificationToken: String,
-
-   resetToken: String,
-   resetTokenExpiry: Date,
+  verificationTokenExpiry: Date,
+  resetToken: String,
+  resetTokenExpiry: Date,
   
-  // Enhanced Friend System
+  // Friends system
   friends: [{
     user: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User"
+      ref: 'User'
     },
     addedAt: {
       type: Date,
@@ -66,66 +65,58 @@ const userSchema = new mongoose.Schema({
     nickname: String
   }],
   
+  // Friend requests received
   friendRequests: [{
     from: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User"
+      ref: 'User'
     },
     status: {
       type: String,
       enum: ['pending', 'accepted', 'rejected'],
       default: 'pending'
     },
-    sentAt: {
+    createdAt: {
       type: Date,
       default: Date.now
     }
   }],
   
+  // Friend requests sent
   sentFriendRequests: [{
     to: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User"
+      ref: 'User'
     },
     status: {
       type: String,
       enum: ['pending', 'accepted', 'rejected'],
       default: 'pending'
     },
-    sentAt: {
+    createdAt: {
       type: Date,
       default: Date.now
     }
   }],
   
+  // Block system
   blockedUsers: [{
     type: mongoose.Schema.Types.ObjectId,
-    ref: "User"
+    ref: 'User'
   }],
   
-  lastSeen: {
-    type: Date,
-    default: Date.now
-  },
-  
-  // Enhanced Privacy Settings
   privacySettings: {
     profileVisibility: {
       type: String,
       enum: ['public', 'friends', 'private'],
       default: 'public'
     },
-    onlineStatus: {
-      type: String,
-      enum: ['visible', 'hidden'],
-      default: 'visible'
-    },
     friendRequests: {
       type: String,
       enum: ['everyone', 'friends_of_friends', 'nobody'],
       default: 'everyone'
     },
-    messageRequests: {
+    lastSeen: {
       type: String,
       enum: ['everyone', 'friends', 'nobody'],
       default: 'everyone'
@@ -135,41 +126,46 @@ const userSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Hash password before saving
-userSchema.pre("save", async function (next) {
+// Index for better performance
+userSchema.index({ email: 1 });
+userSchema.index({ username: 1 });
+userSchema.index({ "friends.user": 1 });
+userSchema.index({ "friendRequests.from": 1 });
+
+// Password hashing middleware
+userSchema.pre("save", async function(next) {
   if (!this.isModified("password")) return next();
-  
-  try {
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-    next();
-  } catch (error) {
-    next(error);
-  }
+  this.password = await bcrypt.hash(this.password, 12);
+  next();
 });
 
-
-// models/User.js - Make sure these methods exist
-userSchema.methods.comparePassword = async function (password) {
-  return await bcrypt.compare(password, this.password);
+// Compare password method
+userSchema.methods.comparePassword = async function(candidatePassword) {
+  return await bcrypt.compare(candidatePassword, this.password);
 };
 
-userSchema.methods.isFriend = function (userId) {
+// Check if user is friend
+userSchema.methods.isFriend = function(userId) {
   return this.friends.some(friend => friend.user.toString() === userId.toString());
 };
 
-userSchema.methods.hasPendingRequest = function (userId) {
+// Check if has pending request from user
+userSchema.methods.hasPendingRequest = function(userId) {
   return this.friendRequests.some(
     req => req.from.toString() === userId.toString() && req.status === 'pending'
   );
 };
 
-// Hide sensitive information when converting to JSON
-userSchema.methods.toJSON = function () {
-  const user = this.toObject();
-  delete user.password;
-  delete user.verificationToken;
-  return user;
+// Check if has sent pending request to user
+userSchema.methods.hasSentPendingRequest = function(userId) {
+  return this.sentFriendRequests.some(
+    req => req.to.toString() === userId.toString() && req.status === 'pending'
+  );
 };
+
+// Virtual for online status
+userSchema.virtual('isOnline').get(function() {
+  return this.lastSeen > new Date(Date.now() - 5 * 60 * 1000); // 5 minutes
+});
 
 export default mongoose.model("User", userSchema);

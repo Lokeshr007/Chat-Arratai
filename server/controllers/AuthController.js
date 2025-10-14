@@ -4,17 +4,97 @@ import { generateToken } from "../lib/utils.js";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
 import bcrypt from "bcryptjs";
+import Group from "../models/Group.js"; // Missing in some files
 
-// Configure email transporter
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
+// Enhanced email transporter with better configuration
+// Enhanced email configuration with better error handling
+const createTransporter = () => {
+  return nodemailer.createTransport({
+    service: 'gmail',
+    host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env.EMAIL_PORT) || 587,
+    secure: false,
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS
+    },
+    tls: {
+      rejectUnauthorized: false
+    },
+    connectionTimeout: 10000, // 10 seconds
+    socketTimeout: 15000, // 15 seconds
+    greetingTimeout: 10000,
+    // Add retry logic
+    retries: 3,
+    retryDelay: 1000
+  });
+};
+
+let transporter = createTransporter();
+
+// Verify email configuration with retry logic
+const verifyEmailConfig = async (retries = 3) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      await transporter.verify();
+      console.log('✅ Email server is ready to send messages');
+      return true;
+    } catch (error) {
+      console.warn(`❌ Email configuration attempt ${i + 1} failed:`, error.message);
+      
+      if (i === retries - 1) {
+        console.error('🚨 Email service unavailable. Continuing without email functionality.');
+        return false;
+      }
+      
+      // Wait before retry
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Recreate transporter for retry
+      transporter = createTransporter();
+    }
   }
-});
+};
 
-// Signup with email verification
+// Initialize email on startup
+verifyEmailConfig();
+
+// Safe email sending function
+export const sendEmailSafe = async (mailOptions, maxRetries = 2) => {
+  // Skip email in development if not configured
+  if (process.env.NODE_ENV === 'development' && !process.env.EMAIL_USER) {
+    console.log('📧 Email disabled in development - no EMAIL_USER configured');
+    return { success: true, skipped: true };
+  }
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const info = await transporter.sendMail({
+        from: process.env.EMAIL_FROM || `"ChatApp" <${process.env.EMAIL_USER}>`,
+        ...mailOptions
+      });
+      
+      console.log('✅ Email sent successfully to:', mailOptions.to);
+      return { success: true, info };
+    } catch (error) {
+      console.error(`❌ Email sending attempt ${attempt + 1} failed:`, error.message);
+      
+      if (attempt === maxRetries) {
+        console.warn('📧 Email service unavailable - continuing without email');
+        return { 
+          success: false, 
+          error: error.message,
+          skipped: true 
+        };
+      }
+      
+      // Recreate transporter and wait before retry
+      transporter = createTransporter();
+      await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+    }
+  }
+};
+
+// Signup with enhanced email verification
 export const signup = async (req, res) => {
   try {
     const { fullName, username, email, password } = req.body;
@@ -56,8 +136,9 @@ export const signup = async (req, res) => {
       });
     }
 
-    // Generate verification token
+    // Generate verification token with expiry (24 hours)
     const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationTokenExpiry = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
 
     // Create user
     const user = await User.create({
@@ -65,41 +146,57 @@ export const signup = async (req, res) => {
       username,
       email,
       password,
-      verificationToken
+      verificationToken,
+      verificationTokenExpiry
     });
 
     // Send verification email
     const verificationUrl = `${process.env.CLIENT_URL}/verify-email?token=${verificationToken}`;
     
-    try {
-      await transporter.sendMail({
-        from: process.env.EMAIL_USER,
-        to: email,
-        subject: 'Verify Your Email - ChatApp',
-        html: `
-          <h2>Welcome to ChatApp!</h2>
-          <p>Please verify your email by clicking the link below:</p>
-          <a href="${verificationUrl}" style="background:#7c3aed;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;">
-            Verify Email
-          </a>
-          <p>This link will expire in 24 hours.</p>
-        `
-      });
-    } catch (emailError) {
-      console.error("Email sending error:", emailError);
-      // Continue even if email fails
-    }
+    const mailOptions = {
+      from: `"ChatApp" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: 'Verify Your Email - ChatApp',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #7c3aed;">Welcome to ChatApp! 🎉</h2>
+          <p>Hello ${fullName},</p>
+          <p>Thank you for signing up! Please verify your email address by clicking the button below:</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${verificationUrl}" 
+               style="background: #7c3aed; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">
+              Verify Email Address
+            </a>
+          </div>
+          <p>Or copy and paste this link in your browser:</p>
+          <p style="word-break: break-all; color: #666;">${verificationUrl}</p>
+          <p>This verification link will expire in 24 hours.</p>
+          <p>If you didn't create an account, please ignore this email.</p>
+          <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+          <p style="color: #666; font-size: 12px;">
+            If you're having trouble clicking the button, copy and paste the URL above into your web browser.
+          </p>
+        </div>
+      `
+    };
+
+   const emailResult = await sendEmailSafe(mailOptions);
+if (emailResult.success && !emailResult.skipped) {
+  console.log(`✅ Verification email sent to: ${email}`);
+} else if (emailResult.skipped) {
+  console.log(`📧 Email verification skipped for: ${email}`);
+}
 
     res.status(201).json({
-  success: true,
-  message: "User created successfully. Please check your email for verification.",
-  userData: {  // CHANGE 'user' to 'userData'
-    _id: user._id,
-    fullName: user.fullName,
-    username: user.username,
-    email: user.email
-  }
-});
+      success: true,
+      message: "Account created successfully! Please check your email for verification link.",
+      userData: {
+        _id: user._id,
+        fullName: user.fullName,
+        username: user.username,
+        email: user.email
+      }
+    });
 
   } catch (error) {
     console.error("Signup error:", error);
@@ -110,7 +207,7 @@ export const signup = async (req, res) => {
   }
 };
 
-// Login
+// Enhanced login with verification status
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -144,7 +241,9 @@ export const login = async (req, res) => {
     if (!user.emailVerified) {
       return res.status(401).json({
         success: false,
-        message: "Please verify your email before logging in"
+        message: "Please verify your email before logging in. Check your inbox or request a new verification link.",
+        needsVerification: true,
+        email: user.email
       });
     }
 
@@ -163,18 +262,18 @@ export const login = async (req, res) => {
     // Generate token
     const token = generateToken(user._id);
 
-   res.json({
-  success: true,
-  message: "Login successful",
-  token,
-  userData: {  // CHANGE 'user' to 'userData'
-    _id: user._id,
-    fullName: user.fullName,
-    username: user.username,
-    email: user.email,
-    profilePic: user.profilePic
-  }
-});
+    res.json({
+      success: true,
+      message: "Login successful",
+      token,
+      userData: {
+        _id: user._id,
+        fullName: user.fullName,
+        username: user.username,
+        email: user.email,
+        profilePic: user.profilePic
+      }
+    });
 
   } catch (error) {
     console.error("Login error:", error);
@@ -185,7 +284,129 @@ export const login = async (req, res) => {
   }
 };
 
-// Forgot Password
+// Enhanced email verification
+export const verifyEmail = async (req, res) => {
+  try {
+    const { token } = req.query;
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: "Verification token is required"
+      });
+    }
+
+    const user = await User.findOne({ 
+      verificationToken: token,
+      verificationTokenExpiry: { $gt: Date.now() }
+    });
+    
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired verification token"
+      });
+    }
+
+    // Verify the email
+    user.emailVerified = true;
+    user.verificationToken = undefined;
+    user.verificationTokenExpiry = undefined;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: "Email verified successfully! You can now login."
+    });
+  } catch (error) {
+    console.error("Email verification error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error"
+    });
+  }
+};
+
+// Resend verification email
+export const resendVerification = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is required"
+      });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      // Don't reveal if email exists or not
+      return res.json({
+        success: true,
+        message: "If the email exists, a new verification link has been sent"
+      });
+    }
+
+    if (user.emailVerified) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is already verified"
+      });
+    }
+
+    // Generate new verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationTokenExpiry = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
+
+    user.verificationToken = verificationToken;
+    user.verificationTokenExpiry = verificationTokenExpiry;
+    await user.save();
+
+    // Send verification email
+    const verificationUrl = `${process.env.CLIENT_URL}/verify-email?token=${verificationToken}`;
+    
+    const mailOptions = {
+      from: `"ChatApp" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: 'Verify Your Email - ChatApp',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #7c3aed;">Verify Your Email</h2>
+          <p>Hello ${user.fullName},</p>
+          <p>You requested a new verification link. Click the button below to verify your email:</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${verificationUrl}" 
+               style="background: #7c3aed; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">
+              Verify Email Address
+            </a>
+          </div>
+          <p>This link will expire in 24 hours.</p>
+          <p>If you didn't request this, please ignore this email.</p>
+        </div>
+      `
+    };
+
+    try {
+      await transporter.sendMail(mailOptions);
+      console.log(`✅ Resent verification email to: ${email}`);
+    } catch (emailError) {
+      console.error("❌ Email sending error:", emailError);
+    }
+
+    res.json({
+      success: true,
+      message: "New verification link sent to your email"
+    });
+
+  } catch (error) {
+    console.error("Resend verification error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error"
+    });
+  }
+};
 export const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
@@ -584,35 +805,6 @@ export const deleteAccount = async (req, res) => {
 };
 
 // Email verification
-export const verifyEmail = async (req, res) => {
-  try {
-    const { token } = req.query;
-    const user = await User.findOne({ verificationToken: token });
-    
-    if (!user) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid or expired verification token"
-      });
-    }
-
-    user.emailVerified = true;
-    user.verificationToken = undefined;
-    await user.save();
-
-    res.json({
-      success: true,
-      message: "Email verified successfully"
-    });
-  } catch (error) {
-    console.error("Email verification error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Internal server error"
-    });
-  }
-};
-
 // Send Friend Request
 export const sendFriendRequest = async (req, res) => {
   try {
@@ -714,113 +906,8 @@ export const sendFriendRequest = async (req, res) => {
   }
 };
 
-// Accept Friend Request
-export const acceptFriendRequest = async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const currentUserId = req.user._id;
 
-    const currentUser = await User.findById(currentUserId);
-    
-    // Find the pending request
-    const requestIndex = currentUser.friendRequests.findIndex(
-      req => req.from.toString() === userId && req.status === 'pending'
-    );
 
-    if (requestIndex === -1) {
-      return res.status(404).json({
-        success: false,
-        message: "Friend request not found"
-      });
-    }
-
-    const request = currentUser.friendRequests[requestIndex];
-    request.status = 'accepted';
-
-    // Add to friends list for both users
-    currentUser.friends.push({
-      user: userId,
-      addedAt: new Date()
-    });
-
-    const otherUser = await User.findById(userId);
-    otherUser.friends.push({
-      user: currentUserId,
-      addedAt: new Date()
-    });
-
-    // Remove from sent requests
-    const sentRequestIndex = otherUser.sentFriendRequests.findIndex(
-      req => req.to.toString() === currentUserId.toString() && req.status === 'pending'
-    );
-    
-    if (sentRequestIndex !== -1) {
-      otherUser.sentFriendRequests[sentRequestIndex].status = 'accepted';
-    }
-
-    await Promise.all([currentUser.save(), otherUser.save()]);
-
-    res.json({
-      success: true,
-      message: "Friend request accepted"
-    });
-
-  } catch (error) {
-    console.error("Accept friend request error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Internal server error"
-    });
-  }
-};
-
-// Reject Friend Request
-export const rejectFriendRequest = async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const currentUserId = req.user._id;
-
-    const currentUser = await User.findById(currentUserId);
-    
-    // Find and update the request
-    const requestIndex = currentUser.friendRequests.findIndex(
-      req => req.from.toString() === userId && req.status === 'pending'
-    );
-
-    if (requestIndex === -1) {
-      return res.status(404).json({
-        success: false,
-        message: "Friend request not found"
-      });
-    }
-
-    currentUser.friendRequests[requestIndex].status = 'rejected';
-
-    // Update sent request in other user
-    const otherUser = await User.findById(userId);
-    const sentRequestIndex = otherUser.sentFriendRequests.findIndex(
-      req => req.to.toString() === currentUserId.toString() && req.status === 'pending'
-    );
-    
-    if (sentRequestIndex !== -1) {
-      otherUser.sentFriendRequests[sentRequestIndex].status = 'rejected';
-    }
-
-    await Promise.all([currentUser.save(), otherUser.save()]);
-
-    res.json({
-      success: true,
-      message: "Friend request rejected"
-    });
-
-  } catch (error) {
-    console.error("Reject friend request error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Internal server error"
-    });
-  }
-};
 
 // Remove Friend
 export const removeFriend = async (req, res) => {
@@ -1053,6 +1140,246 @@ export const getUserProfile = async (req, res) => {
 
   } catch (error) {
     console.error("Get user profile error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error"
+    });
+  }
+};
+
+// Send friend request by email
+export const sendFriendRequestByEmail = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const currentUserId = req.user._id;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is required"
+      });
+    }
+
+    // Find user by email
+    const targetUser = await User.findOne({ email });
+    if (!targetUser) {
+      return res.status(404).json({
+        success: false,
+        message: "User with this email not found"
+      });
+    }
+
+    if (targetUser._id.toString() === currentUserId.toString()) {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot send friend request to yourself"
+      });
+    }
+
+    const currentUser = await User.findById(currentUserId);
+
+    // Check if already friends
+    if (currentUser.isFriend(targetUser._id)) {
+      return res.status(400).json({
+        success: false,
+        message: "You are already friends with this user"
+      });
+    }
+
+    // Check if request already exists
+    if (targetUser.hasPendingRequest(currentUserId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Friend request already sent"
+      });
+    }
+
+    // Check privacy settings
+    if (targetUser.privacySettings.friendRequests === 'nobody') {
+      return res.status(403).json({
+        success: false,
+        message: "This user is not accepting friend requests"
+      });
+    }
+
+    if (targetUser.privacySettings.friendRequests === 'friends_of_friends') {
+      // Check if they have mutual friends
+      const mutualFriends = currentUser.friends.some(friend1 => 
+        targetUser.friends.some(friend2 => 
+          friend1.user.toString() === friend2.user.toString()
+        )
+      );
+      
+      if (!mutualFriends) {
+        return res.status(403).json({
+          success: false,
+          message: "This user only accepts friend requests from friends of friends"
+        });
+      }
+    }
+
+    // Add friend request to target user
+    targetUser.friendRequests.push({
+      from: currentUserId,
+      status: 'pending'
+    });
+
+    // Add sent request to current user
+    currentUser.sentFriendRequests.push({
+      to: targetUser._id,
+      status: 'pending'
+    });
+
+    await Promise.all([currentUser.save(), targetUser.save()]);
+
+    res.json({
+      success: true,
+      message: "Friend request sent successfully",
+      request: {
+        _id: targetUser.friendRequests[targetUser.friendRequests.length - 1]._id,
+        toUserId: targetUser._id
+      }
+    });
+
+  } catch (error) {
+    console.error("Send friend request by email error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error"
+    });
+  }
+};
+
+// Get pending friend requests
+export const getPendingRequests = async (req, res) => {
+  try {
+    const currentUser = await User.findById(req.user._id)
+      .populate('friendRequests.from', 'fullName username profilePic email');
+
+    const pendingRequests = currentUser.friendRequests
+      .filter(req => req.status === 'pending')
+      .map(req => ({
+        _id: req._id,
+        from: req.from,
+        createdAt: req.createdAt
+      }));
+
+    res.json({
+      success: true,
+      pendingRequests
+    });
+
+  } catch (error) {
+    console.error("Get pending requests error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error"
+    });
+  }
+};
+
+// Accept friend request by request ID
+export const acceptFriendRequest = async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const currentUserId = req.user._id;
+
+    const currentUser = await User.findById(currentUserId);
+    
+    // Find the pending request
+    const requestIndex = currentUser.friendRequests.findIndex(
+      req => req._id.toString() === requestId && req.status === 'pending'
+    );
+
+    if (requestIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: "Friend request not found"
+      });
+    }
+
+    const request = currentUser.friendRequests[requestIndex];
+    request.status = 'accepted';
+
+    // Add to friends list for both users
+    currentUser.friends.push({
+      user: request.from
+    });
+
+    const otherUser = await User.findById(request.from);
+    otherUser.friends.push({
+      user: currentUserId
+    });
+
+    // Update sent request status
+    const sentRequestIndex = otherUser.sentFriendRequests.findIndex(
+      req => req.to.toString() === currentUserId.toString() && req.status === 'pending'
+    );
+    
+    if (sentRequestIndex !== -1) {
+      otherUser.sentFriendRequests[sentRequestIndex].status = 'accepted';
+    }
+
+    await Promise.all([currentUser.save(), otherUser.save()]);
+
+    res.json({
+      success: true,
+      message: "Friend request accepted",
+      friendRequest: request,
+      user: currentUser
+    });
+
+  } catch (error) {
+    console.error("Accept friend request error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error"
+    });
+  }
+};
+
+// Reject friend request by request ID
+export const rejectFriendRequest = async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const currentUserId = req.user._id;
+
+    const currentUser = await User.findById(currentUserId);
+    
+    // Find and update the request
+    const requestIndex = currentUser.friendRequests.findIndex(
+      req => req._id.toString() === requestId && req.status === 'pending'
+    );
+
+    if (requestIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: "Friend request not found"
+      });
+    }
+
+    currentUser.friendRequests[requestIndex].status = 'rejected';
+
+    // Update sent request in other user
+    const otherUser = await User.findById(currentUser.friendRequests[requestIndex].from);
+    const sentRequestIndex = otherUser.sentFriendRequests.findIndex(
+      req => req.to.toString() === currentUserId.toString() && req.status === 'pending'
+    );
+    
+    if (sentRequestIndex !== -1) {
+      otherUser.sentFriendRequests[sentRequestIndex].status = 'rejected';
+    }
+
+    await Promise.all([currentUser.save(), otherUser.save()]);
+
+    res.json({
+      success: true,
+      message: "Friend request rejected",
+      user: currentUser
+    });
+
+  } catch (error) {
+    console.error("Reject friend request error:", error);
     res.status(500).json({
       success: false,
       message: "Internal server error"

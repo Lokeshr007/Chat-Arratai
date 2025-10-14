@@ -1,16 +1,38 @@
 import express from "express";
-import { uploadFile, deleteFile, uploadMultipleFiles } from "../controllers/uploadController.js";
+import { 
+  uploadFile, 
+  deleteFile, 
+  uploadMultipleFiles, 
+  uploadBase64File,
+  getSignature 
+} from "../controllers/uploadController.js";
 import { protectRoute } from "../middleware/auth.js";
 
 const router = express.Router();
 
-// Upload single file
+// Upload single file (form-data)
 router.post("/", protectRoute, uploadFile);
 
-// Upload multiple files
+// Upload multiple files (form-data)
 router.post("/multiple", protectRoute, uploadMultipleFiles);
+
+// Upload base64 file (for client-side uploads)
+router.post("/base64", protectRoute, uploadBase64File);
+
+// Get upload signature for client-side uploads
+router.get("/signature", protectRoute, getSignature);
 
 // Delete file
 router.delete("/", protectRoute, deleteFile);
+
+// Test route
+router.get("/test", protectRoute, (req, res) => {
+  res.json({
+    success: true,
+    message: "Upload endpoint is working",
+    user: req.user._id,
+    timestamp: new Date().toISOString()
+  });
+});
 
 export default router;

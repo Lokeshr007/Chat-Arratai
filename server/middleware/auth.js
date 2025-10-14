@@ -1,78 +1,73 @@
 // middleware/auth.js
-import User from "../models/User.js";
 import jwt from "jsonwebtoken";
+import User from "../models/User.js";
 
 export const protectRoute = async (req, res, next) => {
   try {
     let token;
 
-    if (req.headers.authorization?.startsWith("Bearer")) {
+    // Get token from header
+    if (req.headers.authorization && req.headers.authorization.startsWith("Bearer")) {
       token = req.headers.authorization.split(" ")[1];
-    } else if (req.headers.token) {
-      token = req.headers.token;
     }
 
     if (!token) {
-      return res.status(401).json({ 
-        success: false, 
-        message: "No token provided" 
+      return res.status(401).json({
+        success: false,
+        message: "Not authorized, no token provided"
       });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const userId = decoded.userId || decoded.id;
-    
-    if (!userId) {
-      return res.status(401).json({ 
-        success: false, 
-        message: "Invalid token" 
+    try {
+      // Verify token
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      
+      // Get user from token
+      const user = await User.findById(decoded.userId).select("-password");
+      
+      if (!user) {
+        return res.status(401).json({
+          success: false,
+          message: "User not found"
+        });
+      }
+
+      if (user.status !== 'active') {
+        return res.status(401).json({
+          success: false,
+          message: "Account is deactivated"
+        });
+      }
+
+      req.user = user;
+      next();
+    } catch (error) {
+      console.error("Token verification error:", error);
+      return res.status(401).json({
+        success: false,
+        message: "Not authorized, invalid token"
       });
     }
-
-    const user = await User.findById(userId).select("-password");
-    if (!user) {
-      return res.status(401).json({ 
-        success: false, 
-        message: "User not found" 
-      });
-    }
-
-    // Check if user is active
-    if (user.status !== 'active') {
-      return res.status(401).json({ 
-        success: false, 
-        message: "Account is deactivated" 
-      });
-    }
-
-    req.user = user;
-    next();
   } catch (error) {
-    console.error("Auth error:", error.message);
-    
-    let message = "Invalid token";
-    if (error.name === 'TokenExpiredError') {
-      message = "Token expired";
-    } else if (error.name === 'JsonWebTokenError') {
-      message = "Malformed token";
-    }
-    
-    res.status(401).json({ success: false, message });
+    console.error("Auth middleware error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error in authentication"
+    });
   }
 };
 
-// Enhanced auth check with user details
-// Add this function to AuthController.js
 export const checkAuth = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select('-password -verificationToken -resetToken');
+    const user = await User.findById(req.user._id).select("-password");
+    
     if (!user) {
       return res.status(404).json({
         success: false,
         message: "User not found"
       });
     }
-    
+
     res.json({
       success: true,
       user: {
@@ -81,14 +76,19 @@ export const checkAuth = async (req, res) => {
         username: user.username,
         email: user.email,
         profilePic: user.profilePic,
-        privacySettings: user.privacySettings
+        status: user.status,
+        lastSeen: user.lastSeen,
+        privacySettings: user.privacySettings,
+        friends: user.friends,
+        friendRequests: user.friendRequests,
+        sentFriendRequests: user.sentFriendRequests
       }
     });
   } catch (error) {
     console.error("Check auth error:", error);
     res.status(500).json({
       success: false,
-      message: "Internal server error"
+      message: "Error checking authentication"
     });
   }
 };

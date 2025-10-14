@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import Profile from './pages/Profile'
+import VerifyEmail from './pages/VerifyEmail' // Add this import
 import Notfound from './pages/Notfound'
 import { Toaster } from "react-hot-toast"
 import { useContext } from 'react'
@@ -12,7 +13,6 @@ const App = () => {
   const { authUser, isLoading } = useContext(AuthContext);
   const location = useLocation();
 
-  // Show loading spinner while checking authentication
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#0f0f1a] via-[#1c1c2e] to-[#282142] flex items-center justify-center">
@@ -51,6 +51,11 @@ const App = () => {
         <Route 
           path="/profile" 
           element={authUser ? <Profile /> : <Navigate to="/login" replace />} 
+        />
+        {/* Add this new route */}
+        <Route 
+          path="/verify-email" 
+          element={<VerifyEmail />} 
         />
         <Route path="*" element={<Notfound />} />
       </Routes>

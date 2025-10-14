@@ -115,13 +115,16 @@ export const getUsersForSidebar = async (req, res) => {
   }
 };
 // Get messages between logged-in user and selected user/group
+// Get messages between logged-in user and selected user/group - ENHANCED
 export const getMessages = async (req, res) => {
     try {
         const { id: chatId } = req.params;
-        const { page = 1, limit = 50 } = req.query;
+        const { page = 1, limit = 50, forceRefresh = false } = req.query;
         const myId = req.user._id;
 
         const skip = (page - 1) * limit;
+
+        console.log(`📨 Fetching messages for chat: ${chatId}, page: ${page}`);
 
         // Check if it's a group or user chat
         const isGroup = await Group.findById(chatId);
@@ -154,7 +157,8 @@ export const getMessages = async (req, res) => {
                 { 
                     receiverId: chatId, 
                     receiverType: 'Group',
-                    seenBy: { $ne: myId }
+                    "seenBy.userId": { $ne: myId },
+                    isDeleted: false
                 },
                 { 
                     $push: { 
@@ -168,12 +172,14 @@ export const getMessages = async (req, res) => {
 
         } else {
             // Private messages - exclude deleted messages
-            messages = await Message.find({
+            const query = {
                 $or: [
                     { senderId: myId, receiverId: chatId, receiverType: 'User', isDeleted: false },
                     { senderId: chatId, receiverId: myId, receiverType: 'User', isDeleted: false }
                 ]
-            })
+            };
+
+            messages = await Message.find(query)
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(parseInt(limit))
@@ -181,12 +187,7 @@ export const getMessages = async (req, res) => {
             .populate('replyTo', 'text media fileType senderId')
             .populate('forwardedFrom', 'text media fileType senderId');
 
-            totalMessages = await Message.countDocuments({
-                $or: [
-                    { senderId: myId, receiverId: chatId, receiverType: 'User', isDeleted: false },
-                    { senderId: chatId, receiverId: myId, receiverType: 'User', isDeleted: false }
-                ]
-            });
+            totalMessages = await Message.countDocuments(query);
 
             // Mark private messages as seen
             await Message.updateMany(
@@ -194,9 +195,15 @@ export const getMessages = async (req, res) => {
                     senderId: chatId, 
                     receiverId: myId, 
                     receiverType: 'User', 
-                    seen: false 
+                    seen: false,
+                    isDeleted: false
                 },
-                { $set: { seen: true } }
+                { 
+                    $set: { 
+                        seen: true,
+                        seenAt: new Date()
+                    } 
+                }
             );
 
             // Notify sender that messages were seen
@@ -211,22 +218,32 @@ export const getMessages = async (req, res) => {
         }
 
         // Reverse to get chronological order
-        messages.reverse();
+        const chronologicalMessages = messages.reverse();
+
+        console.log(`✅ Loaded ${chronologicalMessages.length} messages for chat ${chatId}`);
 
         res.json({ 
             success: true, 
-            messages,
+            messages: chronologicalMessages,
             pagination: {
                 currentPage: parseInt(page),
                 totalPages: Math.ceil(totalMessages / limit),
                 totalMessages,
                 hasNext: (page * limit) < totalMessages,
                 hasPrev: page > 1
+            },
+            chatInfo: {
+                isGroup: !!isGroup,
+                totalMessages
             }
         });
     } catch (error) {
-        console.error("Get messages error:", error);
-        res.status(500).json({ success: false, message: error.message });
+        console.error("❌ Get messages error:", error);
+        res.status(500).json({ 
+            success: false, 
+            message: "Failed to load messages",
+            error: error.message 
+        });
     }
 };
 
@@ -347,82 +364,77 @@ export const sendMessage = async (req, res) => {
 };
 
 // Send media message
+// Enhanced sendMediaMessage function
 export const sendMediaMessage = async (req, res) => {
-    try {
-        const { text, mediaUrls, fileType = 'other', replyTo } = req.body;
-        const receiverId = req.params.id;
-        const senderId = req.user._id;
+  try {
+    const { text, mediaUrls, fileType = 'other', replyTo } = req.body;
+    const receiverId = req.params.id;
+    const senderId = req.user._id;
 
-        if (!mediaUrls || mediaUrls.length === 0) {
-            return res.status(400).json({ success: false, message: "Media files are required" });
-        }
+    console.log("📨 Sending media message:", { receiverId, fileType, mediaUrlsCount: mediaUrls?.length });
 
-        // Check if receiver exists
-        const receiver = await User.findById(receiverId);
-        if (!receiver) {
-            return res.status(404).json({ success: false, message: "Receiver not found" });
-        }
-
-        // Validate replyTo message
-        if (replyTo) {
-            const replyMessage = await Message.findById(replyTo);
-            if (!replyMessage) {
-                return res.status(404).json({ success: false, message: "Reply message not found" });
-            }
-        }
-
-        // Upload files to Cloudinary if they are base64 strings
-        let processedMediaUrls = [];
-        
-        for (const media of mediaUrls) {
-            if (typeof media === 'string' && media.startsWith('data:')) {
-                // Base64 file - upload to Cloudinary
-                const uploadResult = await cloudinary.uploader.upload(media, {
-                    resource_type: fileType === 'video' ? 'video' : 'auto',
-                    folder: `chat_app/users/${senderId}/media`,
-                    quality: "auto",
-                    fetch_format: "auto"
-                });
-                processedMediaUrls.push(uploadResult.secure_url);
-            } else if (typeof media === 'string') {
-                // Already a URL
-                processedMediaUrls.push(media);
-            }
-        }
-
-        const messageData = {
-            senderId,
-            receiverId,
-            receiverType: 'User',
-            text: text?.trim() || "",
-            media: processedMediaUrls,
-            fileType,
-            seen: false
-        };
-
-        if (replyTo) {
-            messageData.replyTo = replyTo;
-        }
-
-        const newMessage = await Message.create(messageData);
-
-        // Populate sender info
-        await newMessage.populate('senderId', 'fullName profilePic username');
-        if (replyTo) {
-            await newMessage.populate('replyTo', 'text media fileType senderId');
-        }
-
-        // Send to receiver via socket
-        const receiverSocketId = userSocketMap[receiverId];
-        if (receiverSocketId) {
-            io.to(receiverSocketId).emit("newMessage", newMessage);
-        }
-
-        res.json({ success: true, newMessage });
-    } catch (error) {
-        console.error("Send media message error:", error);
-        res.status(500).json({ success: false, message: error.message });
+    if (!mediaUrls || mediaUrls.length === 0) {
+      return res.status(400).json({ success: false, message: "Media files are required" });
     }
+
+    // Check if receiver exists
+    const receiver = await User.findById(receiverId);
+    if (!receiver) {
+      return res.status(404).json({ success: false, message: "Receiver not found" });
+    }
+
+    // Check if current user is blocked by receiver
+    if (receiver.blockedUsers.includes(senderId)) {
+      return res.status(403).json({ success: false, message: "Cannot send message to this user" });
+    }
+
+    // Validate replyTo message
+    if (replyTo) {
+      const replyMessage = await Message.findById(replyTo);
+      if (!replyMessage) {
+        return res.status(404).json({ success: false, message: "Reply message not found" });
+      }
+    }
+
+    const messageData = {
+      senderId,
+      receiverId,
+      receiverType: 'User',
+      text: text?.trim() || "",
+      media: mediaUrls, // Use the URLs directly (they should already be Cloudinary URLs)
+      fileType,
+      seen: false
+    };
+
+    if (replyTo) {
+      messageData.replyTo = replyTo;
+    }
+
+    const newMessage = await Message.create(messageData);
+
+    // Populate sender info
+    await newMessage.populate('senderId', 'fullName profilePic username');
+    if (replyTo) {
+      await newMessage.populate('replyTo', 'text media fileType senderId');
+    }
+
+    console.log("✅ Media message created:", newMessage._id);
+
+    // Send to receiver via socket
+    const receiverSocketId = userSocketMap[receiverId];
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("newMessage", newMessage);
+    }
+
+    res.json({ success: true, newMessage });
+  } catch (error) {
+    console.error("❌ Send media message error:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to send media message",
+      error: error.message 
+    });
+  }
 };
 
 // Add reaction to message
@@ -636,45 +648,53 @@ export const deleteMessageById = async (req, res) => {
     }
 };
 
-// Clear chat with user
+// Clear chat with user - PERMANENT DELETE
+// Clear chat with user - PERMANENT DELETE
+// Make sure this function is exported
 export const clearChatWithUser = async (req, res) => {
     try {
         const chatId = req.params.id;
         const currentUserId = req.user._id;
 
+        console.log(`🗑️ CLEAR CHAT BACKEND - User: ${currentUserId}, Chat: ${chatId}`);
+
         // Check if it's a group or user chat
         const isGroup = await Group.findById(chatId);
         
+        let result;
+
         if (isGroup) {
-            // For groups, only soft delete messages sent by current user
-            await Message.updateMany(
-                {
-                    senderId: currentUserId,
-                    receiverId: chatId,
-                    receiverType: 'Group'
-                },
-                { $set: { isDeleted: true } }
-            );
+            // Group chat - delete all messages in the group
+            result = await Message.deleteMany({
+                receiverId: chatId,
+                receiverType: 'Group'
+            });
+            console.log(`✅ DELETED ${result.deletedCount} GROUP MESSAGES`);
         } else {
-            // For private chats, soft delete all messages for current user
-            await Message.updateMany(
-                {
-                    $or: [
-                        { senderId: currentUserId, receiverId: chatId, receiverType: 'User' },
-                        { senderId: chatId, receiverId: currentUserId, receiverType: 'User' }
-                    ]
-                },
-                { $set: { isDeleted: true } }
-            );
+            // Private chat - delete all messages between users
+            result = await Message.deleteMany({
+                $or: [
+                    { senderId: currentUserId, receiverId: chatId, receiverType: 'User' },
+                    { senderId: chatId, receiverId: currentUserId, receiverType: 'User' }
+                ]
+            });
+            console.log(`✅ DELETED ${result.deletedCount} PRIVATE MESSAGES`);
         }
 
-        res.json({ success: true, message: "Chat cleared successfully" });
+        res.json({ 
+            success: true, 
+            message: "Chat cleared permanently",
+            deletedCount: result.deletedCount
+        });
     } catch (error) {
-        console.error("Clear chat error:", error);
-        res.status(500).json({ success: false, message: error.message });
+        console.error("❌ Clear chat error:", error);
+        res.status(500).json({ 
+            success: false, 
+            message: "Failed to clear chat",
+            error: error.message 
+        });
     }
 };
-
 // Forward message
 export const forwardMessage = async (req, res) => {
     try {

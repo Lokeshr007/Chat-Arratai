@@ -56,7 +56,7 @@ const RightSidebar = ({ onClose }) => {
 
   if (!currentChat) {
     return (
-      <div className="bg-[#1c1c2e] h-full w-full sm:w-80 border-l border-gray-700 flex flex-col">
+      <div className="bg-[#1c1c2e] h-full w-full border-l border-gray-700 flex flex-col">
         <div className="flex items-center justify-center h-full text-gray-400">
           No chat selected
         </div>
@@ -291,9 +291,9 @@ const RightSidebar = ({ onClose }) => {
   const sharedLocations = getSharedLocations();
 
   return (
-    <div className="bg-[#1c1c2e] h-full w-full sm:w-80 border-l border-gray-700 flex flex-col">
+    <div className="bg-[#1c1c2e] h-full w-full border-l border-gray-700 flex flex-col">
       {/* Header */}
-      <div className="flex justify-between items-center p-4 border-b border-gray-700">
+      <div className="flex justify-between items-center p-4 border-b border-gray-700 flex-shrink-0">
         <h2 className="text-lg font-semibold text-white truncate">
           {isGroup ? currentChat.name : currentChat.fullName || "User Profile"}
         </h2>
@@ -326,7 +326,7 @@ const RightSidebar = ({ onClose }) => {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-gray-700 overflow-x-auto">
+      <div className="flex border-b border-gray-700 overflow-x-auto flex-shrink-0">
         <button
           className={`flex items-center gap-2 flex-1 py-3 px-4 text-sm font-medium transition-colors min-w-max ${
             activeTab === "info" 
