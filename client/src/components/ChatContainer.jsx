@@ -1,6 +1,4 @@
 import React, { useContext, useState, useEffect, useRef, useCallback } from "react";
-import { GlobalStyles } from "@mui/material";
-
 import {
   Box,
   Paper,
@@ -41,6 +39,7 @@ import {
   Collapse,
   Card,
   CardMedia,
+  GlobalStyles,
 } from "@mui/material";
 import {
   Send as SendIcon,
@@ -1222,80 +1221,78 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
   const typingTimeoutRef = useRef(null);
   const inputRef = useRef(null);
 
-  // ============ ENHANCED MESSAGE PERSISTENCE ============
-
-// Update the loadMessages function with better error handling
-const loadMessages = useCallback(async (forceRefresh = false) => {
-  if (!selectedUser?._id) {
-    console.log("No selected user, clearing messages");
-    setMessages([]);
-    return;
-  }
-  
-  try {
-    console.log("🔄 Loading messages for user:", selectedUser._id, "Force refresh:", forceRefresh);
+  // Enhanced message persistence
+  const loadMessages = useCallback(async (forceRefresh = false) => {
+    if (!selectedUser?._id) {
+      console.log("No selected user, clearing messages");
+      setMessages([]);
+      return;
+    }
     
-    // Always check cache first for instant loading
-    const cachedMessages = getCachedMessages(selectedUser._id);
-    
-    if (cachedMessages && cachedMessages.length > 0 && !forceRefresh) {
-      console.log("📦 Using cached messages:", cachedMessages.length);
-      setMessages(cachedMessages);
-      setMessageError(null);
+    try {
+      console.log("🔄 Loading messages for user:", selectedUser._id, "Force refresh:", forceRefresh);
       
-      // Background refresh for updates (don't await this)
-      setTimeout(async () => {
-        try {
-          const freshMessages = await getMessage(selectedUser._id, 1, true);
-          if (freshMessages && freshMessages.length !== cachedMessages.length) {
-            console.log("🔄 Background refresh: messages updated");
-            setMessages(freshMessages);
+      // Always check cache first for instant loading
+      const cachedMessages = getCachedMessages(selectedUser._id);
+      
+      if (cachedMessages && cachedMessages.length > 0 && !forceRefresh) {
+        console.log("📦 Using cached messages:", cachedMessages.length);
+        setMessages(cachedMessages);
+        setMessageError(null);
+        
+        // Background refresh for updates (don't await this)
+        setTimeout(async () => {
+          try {
+            const freshMessages = await getMessage(selectedUser._id, 1, true);
+            if (freshMessages && freshMessages.length !== cachedMessages.length) {
+              console.log("🔄 Background refresh: messages updated");
+              setMessages(freshMessages);
+            }
+          } catch (error) {
+            console.log("⚠️ Background refresh failed, using cached messages");
           }
-        } catch (error) {
-          console.log("⚠️ Background refresh failed, using cached messages");
-        }
-      }, 500);
+        }, 500);
+        
+        return;
+      }
       
-      return;
+      // Fetch fresh messages
+      console.log("📡 Fetching fresh messages...");
+      const freshMessages = await getMessage(selectedUser._id, 1, true);
+      
+      if (freshMessages && freshMessages.length > 0) {
+        console.log("✅ Fresh messages loaded:", freshMessages.length);
+        setMessages(freshMessages);
+        setMessageError(null);
+      } else {
+        console.log("💬 No messages in this chat");
+        setMessages([]);
+        setMessageError("No messages yet. Start a conversation!");
+      }
+      
+    } catch (error) {
+      console.error("❌ Failed to load messages:", error);
+      
+      // Don't show error for cancelled requests
+      if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+        console.log('ℹ️ Message load was cancelled');
+        return;
+      }
+      
+      setMessageError("Failed to load messages");
+      
+      // Fallback to cached messages
+      const cachedMessages = getCachedMessages(selectedUser._id);
+      if (cachedMessages && cachedMessages.length > 0) {
+        console.log("🔄 Using cached messages as fallback");
+        setMessages(cachedMessages);
+        toast.error("Using cached messages - connection issue");
+      } else {
+        setMessages([]);
+        toast.error("Failed to load messages");
+      }
     }
-    
-    // Fetch fresh messages
-    console.log("📡 Fetching fresh messages...");
-    const freshMessages = await getMessage(selectedUser._id, 1, true);
-    
-    if (freshMessages && freshMessages.length > 0) {
-      console.log("✅ Fresh messages loaded:", freshMessages.length);
-      setMessages(freshMessages);
-      setMessageError(null);
-    } else {
-      console.log("💬 No messages in this chat");
-      setMessages([]);
-      setMessageError("No messages yet. Start a conversation!");
-    }
-    
-  } catch (error) {
-    console.error("❌ Failed to load messages:", error);
-    
-    // Don't show error for cancelled requests
-    if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
-      console.log('ℹ️ Message load was cancelled');
-      return;
-    }
-    
-    setMessageError("Failed to load messages");
-    
-    // Fallback to cached messages
-    const cachedMessages = getCachedMessages(selectedUser._id);
-    if (cachedMessages && cachedMessages.length > 0) {
-      console.log("🔄 Using cached messages as fallback");
-      setMessages(cachedMessages);
-      toast.error("Using cached messages - connection issue");
-    } else {
-      setMessages([]);
-      toast.error("Failed to load messages");
-    }
-  }
-}, [selectedUser, getMessage, setMessages, getCachedMessages]);
+  }, [selectedUser, getMessage, setMessages, getCachedMessages]);
 
   // Enhanced cache persistence
   useEffect(() => {
@@ -1306,46 +1303,45 @@ const loadMessages = useCallback(async (forceRefresh = false) => {
   }, [messages, selectedUser, setCachedMessages]);
 
   // Load messages when component mounts or user changes
-// Update the useEffect that loads messages and pinned messages
-useEffect(() => {
-  if (selectedUser) {
-    console.log("User selected, loading messages...");
-    
-    // Use a flag to track if component is still mounted
-    let isMounted = true;
-    
-    const loadData = async () => {
-      try {
-        await loadMessages();
-        
-        if (isMounted) {
-          clearSelection();
+  useEffect(() => {
+    if (selectedUser) {
+      console.log("User selected, loading messages...");
+      
+      // Use a flag to track if component is still mounted
+      let isMounted = true;
+      
+      const loadData = async () => {
+        try {
+          await loadMessages();
           
-          // Load pinned messages with error handling
-          try {
-            await getPinnedMessages(selectedUser._id);
-          } catch (pinError) {
-            console.log('⚠️ Could not load pinned messages:', pinError.message);
-            // This is non-critical, so we don't show error to user
+          if (isMounted) {
+            clearSelection();
+            
+            // Load pinned messages with error handling
+            try {
+              await getPinnedMessages(selectedUser._id);
+            } catch (pinError) {
+              console.log('⚠️ Could not load pinned messages:', pinError.message);
+              // This is non-critical, so we don't show error to user
+            }
+          }
+        } catch (error) {
+          if (isMounted) {
+            console.error('❌ Error loading chat data:', error);
           }
         }
-      } catch (error) {
-        if (isMounted) {
-          console.error('❌ Error loading chat data:', error);
-        }
-      }
-    };
-    
-    loadData();
-    
-    return () => {
-      isMounted = false;
-    };
-  } else {
-    console.log("No user selected, clearing messages");
-    setMessages([]);
-  }
-}, [selectedUser?._id]);
+      };
+      
+      loadData();
+      
+      return () => {
+        isMounted = false;
+      };
+    } else {
+      console.log("No user selected, clearing messages");
+      setMessages([]);
+    }
+  }, [selectedUser?._id]);
 
   // Handle page refresh - restore from cache immediately
   useEffect(() => {
@@ -1387,8 +1383,7 @@ useEffect(() => {
     };
   }, [selectedUser, messages]);
 
-  // ============ ENHANCED REACTIONS SYSTEM ============
-
+  // Enhanced reactions system
   const handleReactToMessage = useCallback(async (messageId, emoji) => {
     if (!messageId || !emoji) {
       console.error("Invalid reaction parameters");
@@ -1488,8 +1483,7 @@ useEffect(() => {
     }
   }, [removeReaction, authUser._id, loadMessages]);
 
-  // ============ SELECTION FUNCTIONS ============
-
+  // Selection functions
   const toggleMessageSelection = useCallback((messageId) => {
     setSelectedMessages(prev => {
       const newSelection = new Set(prev);
@@ -1622,26 +1616,27 @@ useEffect(() => {
   }, [selectedMessages, messages, clearSelection]);
 
   // Clear entire chat
-const clearChat = useCallback(async () => {
-  if (!selectedUser) return;
+  const clearChat = useCallback(async () => {
+    if (!selectedUser) return;
 
-  try {
-    console.log('🔍 CLEAR CHAT TRIGGERED - Chat ID:', selectedUser._id);
-    
-    // Use the permanent clear function from context
-    const success = await clearChatPermanently(selectedUser._id);
-    
-    if (success) {
-      setClearChatDialogOpen(false);
-      console.log('✅ Chat cleared successfully');
-    } else {
-      console.log('❌ Chat clear failed');
+    try {
+      console.log('🔍 CLEAR CHAT TRIGGERED - Chat ID:', selectedUser._id);
+      
+      // Use the permanent clear function from context
+      const success = await clearChatPermanently(selectedUser._id);
+      
+      if (success) {
+        setClearChatDialogOpen(false);
+        console.log('✅ Chat cleared successfully');
+      } else {
+        console.log('❌ Chat clear failed');
+      }
+    } catch (error) {
+      console.error("❌ Clear chat error:", error);
+      toast.error("Failed to clear chat");
     }
-  } catch (error) {
-    console.error("❌ Clear chat error:", error);
-    toast.error("Failed to clear chat");
-  }
-}, [selectedUser, clearChatPermanently]);
+  }, [selectedUser, clearChatPermanently]);
+
   // Load users for forwarding
   const loadUsersForForward = useCallback(async () => {
     try {
@@ -1668,8 +1663,7 @@ const clearChat = useCallback(async () => {
     });
   }, []);
 
-  // ============ MESSAGE FUNCTIONS ============
-
+  // Message functions
   const scrollToBottom = useCallback((instant = false) => {
     if (messagesEndRef.current) {
       setTimeout(() => {
@@ -2041,8 +2035,7 @@ const clearChat = useCallback(async () => {
     }
   };
 
-  // ============ EFFECTS ============
-
+  // Effects
   // Mark messages as seen when user is active
   useEffect(() => {
     if (selectedUser && messages.length > 0) {
@@ -3332,22 +3325,22 @@ const clearChat = useCallback(async () => {
       </Snackbar>
 
       {/* CSS Animations */}
-     <GlobalStyles
-  styles={{
-    '@keyframes bounce': {
-      '0%, 100%': { transform: 'translateY(0)' },
-      '50%': { transform: 'translateY(-5px)' },
-    },
-    '@keyframes pulse': {
-      '0%, 100%': { opacity: 1 },
-      '50%': { opacity: 0.5 },
-    },
-    '@keyframes float': {
-      '0%, 100%': { transform: 'translateY(0px)' },
-      '50%': { transform: 'translateY(-10px)' },
-    },
-  }}
-/>
+      <GlobalStyles
+        styles={{
+          '@keyframes bounce': {
+            '0%, 100%': { transform: 'translateY(0)' },
+            '50%': { transform: 'translateY(-5px)' },
+          },
+          '@keyframes pulse': {
+            '0%, 100%': { opacity: 1 },
+            '50%': { opacity: 0.5 },
+          },
+          '@keyframes float': {
+            '0%, 100%': { transform: 'translateY(0px)' },
+            '50%': { transform: 'translateY(-10px)' },
+          },
+        }}
+      />
     </Box>
   );
 };

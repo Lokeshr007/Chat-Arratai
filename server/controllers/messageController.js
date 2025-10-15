@@ -116,6 +116,7 @@ export const getUsersForSidebar = async (req, res) => {
 };
 // Get messages between logged-in user and selected user/group
 // Get messages between logged-in user and selected user/group - ENHANCED
+// Get messages between logged-in user and selected user/group - UPDATED
 export const getMessages = async (req, res) => {
     try {
         const { id: chatId } = req.params;
@@ -133,12 +134,14 @@ export const getMessages = async (req, res) => {
         let totalMessages;
         
         if (isGroup) {
-            // Group messages - exclude deleted messages
-            messages = await Message.find({
+            // Group messages - exclude messages deleted by current user
+            const query = {
                 receiverId: chatId,
                 receiverType: 'Group',
-                isDeleted: false
-            })
+                deletedFor: { $ne: myId } // Exclude messages deleted by current user
+            };
+
+            messages = await Message.find(query)
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(parseInt(limit))
@@ -146,11 +149,7 @@ export const getMessages = async (req, res) => {
             .populate('replyTo', 'text media fileType senderId')
             .populate('forwardedFrom', 'text media fileType senderId');
 
-            totalMessages = await Message.countDocuments({
-                receiverId: chatId,
-                receiverType: 'Group',
-                isDeleted: false
-            });
+            totalMessages = await Message.countDocuments(query);
 
             // Mark messages as seen by current user in group
             await Message.updateMany(
@@ -158,7 +157,7 @@ export const getMessages = async (req, res) => {
                     receiverId: chatId, 
                     receiverType: 'Group',
                     "seenBy.userId": { $ne: myId },
-                    isDeleted: false
+                    deletedFor: { $ne: myId }
                 },
                 { 
                     $push: { 
@@ -171,12 +170,13 @@ export const getMessages = async (req, res) => {
             );
 
         } else {
-            // Private messages - exclude deleted messages
+            // Private messages - exclude messages deleted by current user
             const query = {
                 $or: [
-                    { senderId: myId, receiverId: chatId, receiverType: 'User', isDeleted: false },
-                    { senderId: chatId, receiverId: myId, receiverType: 'User', isDeleted: false }
-                ]
+                    { senderId: myId, receiverId: chatId, receiverType: 'User' },
+                    { senderId: chatId, receiverId: myId, receiverType: 'User' }
+                ],
+                deletedFor: { $ne: myId } // Exclude messages deleted by current user
             };
 
             messages = await Message.find(query)
@@ -196,7 +196,7 @@ export const getMessages = async (req, res) => {
                     receiverId: myId, 
                     receiverType: 'User', 
                     seen: false,
-                    isDeleted: false
+                    deletedFor: { $ne: myId }
                 },
                 { 
                     $set: { 
@@ -220,7 +220,7 @@ export const getMessages = async (req, res) => {
         // Reverse to get chronological order
         const chronologicalMessages = messages.reverse();
 
-        console.log(`✅ Loaded ${chronologicalMessages.length} messages for chat ${chatId}`);
+        console.log(`✅ Loaded ${chronologicalMessages.length} messages for chat ${chatId} (filtered by user deletion)`);
 
         res.json({ 
             success: true, 
@@ -651,12 +651,13 @@ export const deleteMessageById = async (req, res) => {
 // Clear chat with user - PERMANENT DELETE
 // Clear chat with user - PERMANENT DELETE
 // Make sure this function is exported
+// Clear chat with user - USER-SPECIFIC (Soft Delete)
 export const clearChatWithUser = async (req, res) => {
     try {
         const chatId = req.params.id;
         const currentUserId = req.user._id;
 
-        console.log(`🗑️ CLEAR CHAT BACKEND - User: ${currentUserId}, Chat: ${chatId}`);
+        console.log(`🗑️ CLEAR CHAT BACKEND - User: ${currentUserId}, Chat: ${chatId} (User-specific)`);
 
         // Check if it's a group or user chat
         const isGroup = await Group.findById(chatId);
@@ -664,27 +665,57 @@ export const clearChatWithUser = async (req, res) => {
         let result;
 
         if (isGroup) {
-            // Group chat - delete all messages in the group
-            result = await Message.deleteMany({
-                receiverId: chatId,
-                receiverType: 'Group'
-            });
-            console.log(`✅ DELETED ${result.deletedCount} GROUP MESSAGES`);
+            // For group chats - mark messages as deleted for current user only
+            result = await Message.updateMany(
+                {
+                    receiverId: chatId,
+                    receiverType: 'Group',
+                    deletedFor: { $ne: currentUserId } // Only update messages not already deleted for this user
+                },
+                { 
+                    $addToSet: { deletedFor: currentUserId },
+                    $set: { updatedAt: new Date() }
+                }
+            );
+            console.log(`✅ MARKED ${result.modifiedCount} GROUP MESSAGES AS DELETED FOR USER ${currentUserId}`);
         } else {
-            // Private chat - delete all messages between users
-            result = await Message.deleteMany({
-                $or: [
-                    { senderId: currentUserId, receiverId: chatId, receiverType: 'User' },
-                    { senderId: chatId, receiverId: currentUserId, receiverType: 'User' }
-                ]
-            });
-            console.log(`✅ DELETED ${result.deletedCount} PRIVATE MESSAGES`);
+            // For private chats - mark messages as deleted for current user only
+            result = await Message.updateMany(
+                {
+                    $or: [
+                        { senderId: currentUserId, receiverId: chatId, receiverType: 'User' },
+                        { senderId: chatId, receiverId: currentUserId, receiverType: 'User' }
+                    ],
+                    deletedFor: { $ne: currentUserId } // Only update messages not already deleted for this user
+                },
+                { 
+                    $addToSet: { deletedFor: currentUserId },
+                    $set: { updatedAt: new Date() }
+                }
+            );
+            console.log(`✅ MARKED ${result.modifiedCount} PRIVATE MESSAGES AS DELETED FOR USER ${currentUserId}`);
+        }
+
+        // Emit socket event to notify the other user (if it's a private chat)
+        if (!isGroup) {
+            const otherUserSocketId = userSocketMap[chatId];
+            if (otherUserSocketId) {
+                io.to(otherUserSocketId).emit("chatCleared", {
+                    chatId: currentUserId, // The user who cleared the chat
+                    clearedBy: currentUserId,
+                    clearedByName: req.user.fullName,
+                    clearedForUserOnly: true,
+                    timestamp: new Date(),
+                    message: `${req.user.fullName} cleared their chat history`
+                });
+            }
         }
 
         res.json({ 
             success: true, 
-            message: "Chat cleared permanently",
-            deletedCount: result.deletedCount
+            message: "Chat cleared successfully (only from your view)",
+            deletedCount: result.modifiedCount,
+            clearedForUserOnly: true
         });
     } catch (error) {
         console.error("❌ Clear chat error:", error);

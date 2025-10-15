@@ -101,56 +101,51 @@ export const ChatProvider = ({ children }) => {
     }
   }, []);
 
-  // ============ ENHANCED CLEAR CHAT FUNCTIONALITY ============
-
+// In ChatContext.jsx - Update the clearChatPermanently function
+// In ChatContext.jsx - Update clearChatPermanently
 const clearChatPermanently = useCallback(async (chatId) => {
-  if (!chatId || !authUser) return false;
-
-  try {
-    console.log('🗑️ Clearing chat permanently from database:', chatId);
-    
-    // Use the correct endpoint - /api/messages/clear/:id
-    const endpoint = `/api/messages/clear/${chatId}`;
-
-    const { data } = await api.delete(endpoint);
-    
-    if (data.success) {
-      console.log(`✅ Permanently deleted ${data.deletedCount} messages from database`);
-      
-      // Clear local messages
-      setMessages([]);
-      
-      // Clear cached messages
-      clearCachedMessages(chatId);
-      
-      // Clear selection mode
-      setSelectedMessages(new Set());
-      setIsSelectMode(false);
-      
-      // Emit socket event to notify other participants
-      if (socket) {
-        socket.emit('chatCleared', {
-          chatId,
-          userId: authUser._id,
-          userName: authUser.fullName,
-          deletedCount: data.deletedCount
-        });
-      }
-      
-      toast.success(`Chat cleared permanently (${data.deletedCount} messages deleted)`);
-      return true;
-    } else {
-      throw new Error(data.message);
+    if (!chatId || !authUser) {
+        console.log('❌ Missing chatId or authUser');
+        return false;
     }
-  } catch (error) {
-    console.error("Clear chat error:", error);
-    toast.error(error.response?.data?.message || "Failed to clear chat");
-    return false;
-  }
-}, [api, socket, authUser, clearCachedMessages]);
 
-  // ============ ENHANCED MESSAGE DELETION ============
+    try {
+        console.log('🔍 FRONTEND - Clear Chat Called (User-specific):');
+        console.log('   - Chat ID:', chatId);
+        console.log('   - Auth User ID:', authUser._id);
+        
+        const endpoint = `/api/messages/clear/${chatId}`;
+        console.log('   - Calling endpoint:', endpoint);
 
+        const { data } = await api.delete(endpoint);
+        
+        console.log('   - Backend response:', data);
+        
+        if (data.success) {
+            console.log(`✅ CHAT CLEARED SUCCESS - Cleared ${data.deletedCount} messages for current user only`);
+            
+            // Only clear local messages if this is the currently selected chat
+            if (selectedUser?._id === chatId) {
+                setMessages([]);
+            }
+            
+            // Clear cached messages for this user only
+            clearCachedMessages(chatId);
+            
+            toast.success(`Chat cleared (${data.deletedCount} messages removed from your view)`);
+            return true;
+        } else {
+            console.log('❌ Backend returned success: false');
+            throw new Error(data.message);
+        }
+    } catch (error) {
+        console.error('❌ FRONTEND - Clear chat error:', error);
+        console.error('   - Error response:', error.response?.data);
+        toast.error(error.response?.data?.message || "Failed to clear chat");
+        return false;
+    }
+}, [api, authUser, clearCachedMessages, selectedUser]);
+  // Enhanced message deletion
   const deleteMessageById = async (messageId, deleteForEveryone = false) => {
     if (!messageId) return;
     
@@ -203,8 +198,7 @@ const clearChatPermanently = useCallback(async (chatId) => {
     }
   };
 
-  // ============ PINNED MESSAGES ============
-
+  // Pinned messages functionality
   const pinMessage = useCallback(async (messageId) => {
     try {
       const { data } = await api.post(`/api/messages/${messageId}/pin`);
@@ -235,10 +229,7 @@ const clearChatPermanently = useCallback(async (chatId) => {
     }
   }, [api]);
 
-
-
-  // ============ PRIVACY HELPER FUNCTIONS ============
-
+  // Privacy helper functions
   const canViewUserProfile = useCallback((user) => {
     if (!user) return false;
     if (user._id === authUser?._id) return true;
@@ -308,8 +299,7 @@ const clearChatPermanently = useCallback(async (chatId) => {
     }
   }, [authUser, friends]);
 
-  // ============ SEARCH HISTORY MANAGEMENT ============
-
+  // Search history management
   const addToSearchHistory = useCallback((query, results = []) => {
     if (!query.trim()) return;
     
@@ -328,8 +318,7 @@ const clearChatPermanently = useCallback(async (chatId) => {
     setSearchHistory([]);
   }, []);
 
-  // ============ RECENT CHATS MANAGEMENT ============
-
+  // Recent chats management
   const addToRecentChats = useCallback((chat) => {
     if (!chat) return;
     
@@ -351,8 +340,7 @@ const clearChatPermanently = useCallback(async (chatId) => {
     setRecentChats([]);
   }, []);
 
-  // ============ FRIEND SYSTEM FUNCTIONS ============
-
+  // Friend system functions
   const getFriends = useCallback(async (retryCount = 0) => {
     if (!authUser || !api) return;
     
@@ -460,8 +448,7 @@ const clearChatPermanently = useCallback(async (chatId) => {
     }
   }, [api, getFriends]);
 
-  // ============ USER MANAGEMENT ============
-
+  // User management
   const getUsers = useCallback(async () => {
     try {
       const { data } = await api.get("/api/messages/users");
@@ -557,8 +544,7 @@ const clearChatPermanently = useCallback(async (chatId) => {
     }
   }, [searchUsers, searchUsersByEmail]);
 
-  // ============ GROUP MANAGEMENT ============
-
+  // Group management
   const getMyGroups = useCallback(async (retryCount = 0) => {
     if (!authUser) return;
     
@@ -735,92 +721,91 @@ const clearChatPermanently = useCallback(async (chatId) => {
     }
   }, [api]);
 
-  // ============ MESSAGE MANAGEMENT ============
-
-const getMessage = useCallback(async (chatId, page = 1, forceRefresh = false) => {
-  if (!chatId) {
-    console.log('❌ No chatId provided to getMessage');
-    return;
-  }
-  
-  // Don't reload if it's the same chat and same page (unless force refresh)
-  if (currentChatIdRef.current === chatId && page === 1 && !forceRefresh) {
-    console.log('🔄 Skipping duplicate message load for same chat');
-    return;
-  }
-  
-  currentChatIdRef.current = chatId;
-
-  // Cancel previous request if it exists
-  if (abortControllerRef.current) {
-    console.log('🛑 Cancelling previous message request');
-    abortControllerRef.current.abort();
-  }
-  
-  abortControllerRef.current = new AbortController();
-
-  try {
-    setIsLoadingMessages(true);
+  // Message management
+  const getMessage = useCallback(async (chatId, page = 1, forceRefresh = false) => {
+    if (!chatId) {
+      console.log('❌ No chatId provided to getMessage');
+      return;
+    }
     
-    const isGroupChat = groups.some(group => group._id === chatId) || selectedUser?.members;
-    const endpoint = isGroupChat 
-      ? `/api/groups/${chatId}/messages`
-      : `/api/messages/${chatId}`;
+    // Don't reload if it's the same chat and same page (unless force refresh)
+    if (currentChatIdRef.current === chatId && page === 1 && !forceRefresh) {
+      console.log('🔄 Skipping duplicate message load for same chat');
+      return;
+    }
+    
+    currentChatIdRef.current = chatId;
 
-    console.log(`📡 Fetching messages from: ${endpoint} (page: ${page})`);
+    // Cancel previous request if it exists
+    if (abortControllerRef.current) {
+      console.log('🛑 Cancelling previous message request');
+      abortControllerRef.current.abort();
+    }
     
-    const { data } = await api.get(`${endpoint}?page=${page}&limit=50`, {
-      signal: abortControllerRef.current.signal,
-      timeout: 10000 // 10 second timeout
-    });
-    
-    if (data.success) {
-      const msgs = data.messages.map(msg => ({
-        ...msg,
-        status: msg.senderId?._id === authUser._id || msg.senderId === authUser._id 
-          ? (msg.seen ? "seen" : "delivered") 
-          : undefined
-      }));
+    abortControllerRef.current = new AbortController();
+
+    try {
+      setIsLoadingMessages(true);
       
-      console.log(`✅ Loaded ${msgs.length} messages for chat ${chatId}`);
+      const isGroupChat = groups.some(group => group._id === chatId) || selectedUser?.members;
+      const endpoint = isGroupChat 
+        ? `/api/groups/${chatId}/messages`
+        : `/api/messages/${chatId}`;
+
+      console.log(`📡 Fetching messages from: ${endpoint} (page: ${page})`);
       
-      if (selectedUser?._id === chatId) {
-        if (page === 1) {
-          setMessages(msgs);
-          // Cache the messages
-          setCachedMessages(chatId, msgs);
-        } else {
-          setMessages(prev => [...msgs, ...prev]);
+      const { data } = await api.get(`${endpoint}?page=${page}&limit=50`, {
+        signal: abortControllerRef.current.signal,
+        timeout: 10000 // 10 second timeout
+      });
+      
+      if (data.success) {
+        const msgs = data.messages.map(msg => ({
+          ...msg,
+          status: msg.senderId?._id === authUser._id || msg.senderId === authUser._id 
+            ? (msg.seen ? "seen" : "delivered") 
+            : undefined
+        }));
+        
+        console.log(`✅ Loaded ${msgs.length} messages for chat ${chatId}`);
+        
+        if (selectedUser?._id === chatId) {
+          if (page === 1) {
+            setMessages(msgs);
+            // Cache the messages
+            setCachedMessages(chatId, msgs);
+          } else {
+            setMessages(prev => [...msgs, ...prev]);
+          }
+          setPagination(data.pagination || {});
         }
-        setPagination(data.pagination || {});
+        
+        return msgs;
       }
-      
-      return msgs;
-    }
-  } catch (error) {
-    // Only log errors that aren't cancellation
-    if (error.name !== 'AbortError' && error.code !== 'ERR_CANCELED') {
-      console.error("Get messages error:", error);
-      
-      // Show user-friendly error messages
-      if (error.response?.status === 404) {
-        toast.error("Chat not found");
-      } else if (error.response?.status === 403) {
-        toast.error("You don't have permission to view this chat");
-      } else if (error.code === 'NETWORK_ERROR' || !navigator.onLine) {
-        toast.error("Network error: Please check your connection");
+    } catch (error) {
+      // Only log errors that aren't cancellation
+      if (error.name !== 'AbortError' && error.code !== 'ERR_CANCELED') {
+        console.error("Get messages error:", error);
+        
+        // Show user-friendly error messages
+        if (error.response?.status === 404) {
+          toast.error("Chat not found");
+        } else if (error.response?.status === 403) {
+          toast.error("You don't have permission to view this chat");
+        } else if (error.code === 'NETWORK_ERROR' || !navigator.onLine) {
+          toast.error("Network error: Please check your connection");
+        } else {
+          toast.error("Failed to load messages");
+        }
       } else {
-        toast.error("Failed to load messages");
+        console.log('ℹ️ Message request was cancelled (expected behavior)');
       }
-    } else {
-      console.log('ℹ️ Message request was cancelled (expected behavior)');
+    } finally {
+      if (selectedUser?._id === chatId) {
+        setIsLoadingMessages(false);
+      }
     }
-  } finally {
-    if (selectedUser?._id === chatId) {
-      setIsLoadingMessages(false);
-    }
-  }
-}, [api, authUser, groups, selectedUser, setCachedMessages]);
+  }, [api, authUser, groups, selectedUser, setCachedMessages]);
 
   const sendMessage = async (messageData) => {
     if (!selectedUser) {
@@ -1200,8 +1185,7 @@ const getMessage = useCallback(async (chatId, page = 1, forceRefresh = false) =>
     }
   }, [socket, selectedUser, isGroup, authUser]);
 
-  // ============ CHAT SETTINGS ============
-
+  // Chat settings
   const updateChatSettings = useCallback((chatId, settings) => {
     setChatSettings(prev => ({
       ...prev,
@@ -1213,8 +1197,7 @@ const getMessage = useCallback(async (chatId, page = 1, forceRefresh = false) =>
     return chatSettings[chatId] || {};
   }, [chatSettings]);
 
-  // ============ UTILITY FUNCTIONS ============
-
+  // Utility functions
   const getFileType = (url) => {
     if (!url || typeof url !== 'string') return 'other';
     
@@ -1393,8 +1376,7 @@ const getMessage = useCallback(async (chatId, page = 1, forceRefresh = false) =>
     }
   };
 
-  // ============ SOCKET EVENT HANDLERS ============
-
+  // Socket event handlers
   useEffect(() => {
     if (!socket || !authUser) return;
 
@@ -1632,39 +1614,31 @@ const getMessage = useCallback(async (chatId, page = 1, forceRefresh = false) =>
       setPinnedMessages(prev => prev.filter(msg => msg._id !== data.messageId));
     };
 
-    // Chat cleared handler - other participant cleared their view
-   // Add this to your socket useEffect in ChatContext
+    // Chat cleared handler
+// In the socket useEffect in ChatContext.jsx - Update the handleChatCleared function
+// In ChatContext.jsx - Update the handleChatCleared function
 const handleChatCleared = (data) => {
-  try {
-    const { chatId, clearedBy, deletedCount, chatType, clearedByName } = data || {};
-    
-    console.log(`🗑️ Received chat cleared event:`, data);
-    
-    // If the cleared chat is the currently selected chat, clear messages
-    if (selectedUser?._id === chatId) {
-      console.log(`🗑️ Chat was cleared by ${clearedByName}, removing messages`);
-      setMessages([]);
-      clearCachedMessages(chatId);
-      
-      if (clearedBy !== authUser._id) {
-        toast.info(`Chat was cleared by ${clearedByName}`);
-      }
-    }
-    
-    // Always clear cache for this chat
-    messageCacheRef.current.delete(`chat-${chatId}`);
     try {
-      localStorage.removeItem(`chat-messages-${chatId}`);
+        const { chatId, clearedBy, clearedByName, clearedForUserOnly, message } = data || {};
+        
+        console.log(`🗑️ Received chat cleared event:`, data);
+        
+        // IMPORTANT: Only show notification if it's the other user clearing their chat
+        if (selectedUser?._id === chatId && clearedBy !== authUser._id) {
+            // This is the other user clearing their chat - just show notification
+            toast.info(message || `${clearedByName} cleared their chat history`);
+            
+            // Don't clear our messages - each user manages their own view
+            console.log(`ℹ️ ${clearedByName} cleared their chat - your messages remain unchanged`);
+        }
+        
+        // If we cleared our own chat, the local state is already updated via the API response
+        // No need to do anything for other users clearing their chats
+        
     } catch (err) {
-      console.log('⚠️ Error clearing localStorage cache:', err);
+        console.error('❌ Error handling chatCleared event:', err);
     }
-  } catch (err) {
-    console.error('❌ Error handling chatCleared event:', err);
-  }
 };
-
-// Register the event listener
-socket.on('chatCleared', handleChatCleared);
     // Register event listeners
     socket.on("newMessage", handleIncomingMessage);
     socket.on("newGroupMessage", handleIncomingMessage);
@@ -1706,10 +1680,9 @@ socket.on('chatCleared', handleChatCleared);
       socket.off("messageUnpinned", handleMessageUnpinned);
       socket.off('chatCleared', handleChatCleared);
     };
-  }, [socket, selectedUser, authUser, getMyGroups, getFriends, messages, getCachedMessages, setCachedMessages]);
+  }, [socket, selectedUser, authUser, getMyGroups, getFriends, messages, getCachedMessages, setCachedMessages, clearCachedMessages]);
 
-  // ============ INITIAL DATA LOADING ============
-
+  // Initial data loading
   const fetchInitialData = useCallback(async () => {
     if (!authUser) return;
     
@@ -1909,47 +1882,45 @@ socket.on('chatCleared', handleChatCleared);
   }, [api]);
 
   const getPinnedMessages = useCallback(async (chatId) => {
-  if (!chatId) return [];
-  
-  try {
-    console.log(`📌 Fetching pinned messages for chat: ${chatId}`);
+    if (!chatId) return [];
     
-    // Check if this is a group or individual chat
-    const isGroupChat = groups.some(group => group._id === chatId) || selectedUser?.members;
-    
-    let endpoint;
-    if (isGroupChat) {
-      endpoint = `/api/groups/${chatId}/pinned-messages`;
-    } else {
-      endpoint = `/api/messages/pinned/${chatId}`;
-    }
-    
-    const { data } = await api.get(endpoint);
-    
-    if (data.success) {
-      console.log(`✅ Loaded ${data.pinnedMessages?.length || 0} pinned messages`);
-      setPinnedMessages(data.pinnedMessages || []);
-      return data.pinnedMessages || [];
-    } else {
-      console.warn('⚠️ No pinned messages endpoint or empty response');
+    try {
+      console.log(`📌 Fetching pinned messages for chat: ${chatId}`);
+      
+      // Check if this is a group or individual chat
+      const isGroupChat = groups.some(group => group._id === chatId) || selectedUser?.members;
+      
+      let endpoint;
+      if (isGroupChat) {
+        endpoint = `/api/groups/${chatId}/pinned-messages`;
+      } else {
+        endpoint = `/api/messages/pinned/${chatId}`;
+      }
+      
+      const { data } = await api.get(endpoint);
+      
+      if (data.success) {
+        console.log(`✅ Loaded ${data.pinnedMessages?.length || 0} pinned messages`);
+        setPinnedMessages(data.pinnedMessages || []);
+        return data.pinnedMessages || [];
+      } else {
+        console.warn('⚠️ No pinned messages endpoint or empty response');
+        setPinnedMessages([]);
+        return [];
+      }
+    } catch (error) {
+      // Handle 404 and other errors gracefully
+      if (error.response?.status === 404) {
+        console.log('📌 Pinned messages endpoint not available, returning empty array');
+      } else {
+        console.error("Get pinned messages error:", error);
+      }
       setPinnedMessages([]);
       return [];
     }
-  } catch (error) {
-    // Handle 404 and other errors gracefully
-    if (error.response?.status === 404) {
-      console.log('📌 Pinned messages endpoint not available, returning empty array');
-    } else {
-      console.error("Get pinned messages error:", error);
-    }
-    setPinnedMessages([]);
-    return [];
-  }
-}, [api, groups, selectedUser]);
+  }, [api, groups, selectedUser]);
 
-
-  // ============ CONTEXT VALUE ============
-
+  // Context value
   const contextValue = useMemo(() => ({
     // State
     messages,
