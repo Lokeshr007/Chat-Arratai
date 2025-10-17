@@ -103,34 +103,35 @@ import { toast } from "react-hot-toast";
 import { ChatContext } from "../../context/ChatContext";
 import { AuthContext } from "../../context/AuthContext";
 
-// Modern gradient colors with glass morphism
+// Modern gradient colors with enhanced contrast
 const MODERN_COLORS = {
   primary: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
   secondary: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
   success: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
   warning: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
   error: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-  dark: 'linear-gradient(135deg, #0f0f1a 0%, #1c1c2e 100%)',
+  dark: 'linear-gradient(135deg, #0a0a14 0%, #151528 100%)',
   messageOwn: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-  messageOther: 'linear-gradient(135deg, #2d2d44 0%, #3a3a5a 100%)',
-  glass: 'rgba(255, 255, 255, 0.08)',
-  glassDark: 'rgba(15, 15, 26, 0.85)',
+  messageOther: 'linear-gradient(135deg, #2a2a3e 0%, #3a3a52 100%)',
+  glass: 'rgba(255, 255, 255, 0.12)',
+  glassDark: 'rgba(10, 10, 20, 0.95)',
   ai: 'linear-gradient(135deg, #ff6b6b 0%, #feca57 100%)',
+  background: 'linear-gradient(135deg, #0a0a14 0%, #1a1a2e 50%, #151528 100%)',
 };
 
-// Enhanced Styled Components
+// Enhanced Styled Components with better contrast
 const GlassPaper = styled(Paper)(({ theme }) => ({
   background: MODERN_COLORS.glass,
-  backdropFilter: 'blur(20px)',
-  border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
-  boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37)',
+  backdropFilter: 'blur(25px)',
+  border: `1px solid ${alpha(theme.palette.common.white, 0.15)}`,
+  boxShadow: '0 12px 40px 0 rgba(31, 38, 135, 0.45)',
 }));
 
 const GradientAppBar = styled(AppBar)(({ theme }) => ({
   background: MODERN_COLORS.glassDark,
-  backdropFilter: 'blur(20px)',
-  borderBottom: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
-  boxShadow: '0 4px 20px 0 rgba(0, 0, 0, 0.2)',
+  backdropFilter: 'blur(25px)',
+  borderBottom: `1px solid ${alpha(theme.palette.common.white, 0.15)}`,
+  boxShadow: '0 6px 25px 0 rgba(0, 0, 0, 0.3)',
 }));
 
 const MessageBubblePaper = styled(Paper, {
@@ -138,19 +139,19 @@ const MessageBubblePaper = styled(Paper, {
 })(
   ({ theme, isOwnMessage, isSelected, isPinned }) => ({
     background: isOwnMessage ? MODERN_COLORS.messageOwn : MODERN_COLORS.messageOther,
-    backdropFilter: 'blur(10px)',
-    border: `1px solid ${alpha(theme.palette.common.white, isOwnMessage ? 0.2 : 0.1)}`,
+    backdropFilter: 'blur(15px)',
+    border: `1px solid ${alpha(theme.palette.common.white, isOwnMessage ? 0.25 : 0.15)}`,
     boxShadow: isSelected 
-      ? '0 0 0 2px rgba(102, 126, 234, 0.6), 0 4px 20px rgba(0, 0, 0, 0.15)'
+      ? '0 0 0 3px rgba(102, 126, 234, 0.8), 0 6px 25px rgba(0, 0, 0, 0.2)'
       : isPinned
-      ? '0 0 0 2px rgba(255, 193, 7, 0.6), 0 4px 20px rgba(255, 193, 7, 0.1)'
-      : '0 4px 20px rgba(0, 0, 0, 0.1)',
-    borderRadius: '20px',
-    borderBottomRightRadius: isOwnMessage ? '6px' : '20px',
-    borderBottomLeftRadius: isOwnMessage ? '20px' : '6px',
-    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+      ? '0 0 0 3px rgba(255, 193, 7, 0.8), 0 6px 25px rgba(255, 193, 7, 0.15)'
+      : '0 6px 25px rgba(0, 0, 0, 0.15)',
+    borderRadius: '22px',
+    borderBottomRightRadius: isOwnMessage ? '8px' : '22px',
+    borderBottomLeftRadius: isOwnMessage ? '22px' : '8px',
+    transition: 'all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
     position: 'relative',
-    overflow: 'hidden',
+    overflow: 'visible',
     '&::before': {
       content: '""',
       position: 'absolute',
@@ -158,25 +159,25 @@ const MessageBubblePaper = styled(Paper, {
       left: 0,
       right: 0,
       height: '1px',
-      background: `linear-gradient(90deg, transparent, ${alpha(theme.palette.common.white, 0.2)}, transparent)`,
+      background: `linear-gradient(90deg, transparent, ${alpha(theme.palette.common.white, 0.3)}, transparent)`,
     },
     '&:hover': {
-      transform: 'translateY(-1px)',
-      boxShadow: '0 6px 25px rgba(0, 0, 0, 0.15)',
+      transform: 'translateY(-3px) scale(1.02)',
+      boxShadow: '0 10px 30px rgba(0, 0, 0, 0.25)',
     },
   })
 );
 
 const FloatingActionButton = styled(Fab)(({ theme }) => ({
   background: MODERN_COLORS.primary,
-  backdropFilter: 'blur(10px)',
-  border: `1px solid ${alpha(theme.palette.common.white, 0.2)}`,
-  boxShadow: '0 8px 32px rgba(102, 126, 234, 0.3)',
-  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+  backdropFilter: 'blur(15px)',
+  border: `1px solid ${alpha(theme.palette.common.white, 0.25)}`,
+  boxShadow: '0 10px 35px rgba(102, 126, 234, 0.4)',
+  transition: 'all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
   '&:hover': {
     background: MODERN_COLORS.secondary,
-    transform: 'translateY(-2px) scale(1.05)',
-    boxShadow: '0 12px 40px rgba(102, 126, 234, 0.4)',
+    transform: 'translateY(-3px) scale(1.1)',
+    boxShadow: '0 15px 45px rgba(102, 126, 234, 0.6)',
   },
   '&:active': {
     transform: 'translateY(0) scale(0.95)',
@@ -186,49 +187,50 @@ const FloatingActionButton = styled(Fab)(({ theme }) => ({
 const ModernTextField = styled(TextField)(({ theme }) => ({
   '& .MuiOutlinedInput-root': {
     background: MODERN_COLORS.glass,
-    backdropFilter: 'blur(10px)',
-    border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
-    borderRadius: '25px',
+    backdropFilter: 'blur(15px)',
+    border: `1px solid ${alpha(theme.palette.common.white, 0.15)}`,
+    borderRadius: '28px',
     color: theme.palette.common.white,
-    transition: 'all 0.3s ease',
+    transition: 'all 0.4s ease',
     '&:hover': {
-      background: alpha(theme.palette.common.white, 0.12),
-      border: `1px solid ${alpha(theme.palette.common.white, 0.2)}`,
+      background: alpha(theme.palette.common.white, 0.18),
+      border: `1px solid ${alpha(theme.palette.common.white, 0.25)}`,
     },
     '&.Mui-focused': {
-      background: alpha(theme.palette.common.white, 0.15),
-      border: `1px solid ${alpha(theme.palette.primary.main, 0.6)}`,
-      boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.2)}`,
+      background: alpha(theme.palette.common.white, 0.2),
+      border: `1px solid ${alpha(theme.palette.primary.main, 0.8)}`,
+      boxShadow: `0 0 0 3px ${alpha(theme.palette.primary.main, 0.3)}`,
     },
     '& fieldset': {
       border: 'none',
     },
   },
   '& .MuiOutlinedInput-input': {
-    padding: '14px 20px',
+    padding: '16px 22px',
     color: theme.palette.common.white,
+    fontSize: '0.95rem',
     '&::placeholder': {
-      color: alpha(theme.palette.common.white, 0.5),
+      color: alpha(theme.palette.common.white, 0.6),
     },
   },
 }));
 
 const AnimatedIconButton = styled(IconButton)(({ theme }) => ({
-  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-  backdropFilter: 'blur(10px)',
-  border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
+  transition: 'all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+  backdropFilter: 'blur(15px)',
+  border: `1px solid ${alpha(theme.palette.common.white, 0.15)}`,
   '&:hover': {
-    transform: 'scale(1.1) translateY(-2px)',
-    background: alpha(theme.palette.common.white, 0.15),
-    border: `1px solid ${alpha(theme.palette.common.white, 0.2)}`,
-    boxShadow: '0 6px 20px rgba(0, 0, 0, 0.15)',
+    transform: 'scale(1.15) translateY(-3px)',
+    background: alpha(theme.palette.common.white, 0.2),
+    border: `1px solid ${alpha(theme.palette.common.white, 0.3)}`,
+    boxShadow: '0 8px 25px rgba(0, 0, 0, 0.2)',
   },
   '&:active': {
-    transform: 'scale(0.95) translateY(0)',
+    transform: 'scale(0.9) translateY(0)',
   },
 }));
 
-// Enhanced Message Status Component with proper ticks
+// Enhanced Message Status Component
 const MessageStatus = ({ message, authUser }) => {
   if (message.senderId?._id !== authUser._id && message.senderId !== authUser._id) return null;
 
@@ -246,47 +248,51 @@ const MessageStatus = ({ message, authUser }) => {
     switch (status) {
       case 'sending':
         return (
-          <Tooltip title="Sending..." arrow>
-            <ScheduleIcon sx={{ fontSize: 16, color: alpha('#fff', 0.6) }} />
+          <Tooltip title="Sending..." arrow placement="top">
+            <ScheduleIcon sx={{ fontSize: 18, color: alpha('#fff', 0.7) }} />
           </Tooltip>
         );
       case 'sent':
         return (
-          <Tooltip title="Sent" arrow>
-            <DoneIcon sx={{ fontSize: 16, color: alpha('#fff', 0.7) }} />
+          <Tooltip title="Sent" arrow placement="top">
+            <DoneIcon sx={{ fontSize: 18, color: alpha('#fff', 0.8) }} />
           </Tooltip>
         );
       case 'delivered':
         return (
-          <Tooltip title="Delivered" arrow>
-            <DoneAllIcon sx={{ fontSize: 16, color: alpha('#fff', 0.7) }} />
+          <Tooltip title="Delivered" arrow placement="top">
+            <DoneAllIcon sx={{ fontSize: 18, color: alpha('#fff', 0.8) }} />
           </Tooltip>
         );
       case 'seen':
         return (
-          <Tooltip title="Seen" arrow>
-            <DoneAllIcon sx={{ fontSize: 16, color: '#4CAF50' }} />
+          <Tooltip title="Seen" arrow placement="top">
+            <DoneAllIcon sx={{ fontSize: 18, color: '#4CAF50' }} />
           </Tooltip>
         );
       case 'failed':
         return (
-          <Tooltip title="Failed to send" arrow>
-            <ErrorIcon sx={{ fontSize: 16, color: '#f44336' }} />
+          <Tooltip title="Failed to send" arrow placement="top">
+            <ErrorIcon sx={{ fontSize: 18, color: '#ff4444' }} />
           </Tooltip>
         );
       default:
         return (
-          <Tooltip title="Sent" arrow>
-            <DoneIcon sx={{ fontSize: 16, color: alpha('#fff', 0.6) }} />
+          <Tooltip title="Sent" arrow placement="top">
+            <DoneIcon sx={{ fontSize: 18, color: alpha('#fff', 0.7) }} />
           </Tooltip>
         );
     }
   };
 
-  return <StatusIcon />;
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+      <StatusIcon />
+    </Box>
+  );
 };
 
-// Enhanced Selection Actions Bar
+// Enhanced Selection Actions Bar with better visibility
 const SelectionActionsBar = ({ 
   selectedCount, 
   clearSelection, 
@@ -302,54 +308,55 @@ const SelectionActionsBar = ({
   return (
     <Slide direction="up" in={true} mountOnEnter unmountOnExit>
       <GlassPaper
-        elevation={8}
+        elevation={12}
         sx={{
           position: 'fixed',
-          bottom: 100,
+          bottom: 120,
           left: '50%',
           transform: 'translateX(-50%)',
-          p: 2,
-          borderRadius: '20px',
+          p: 2.5,
+          borderRadius: '25px',
           color: 'white',
           display: 'flex',
           alignItems: 'center',
-          gap: 2,
-          zIndex: 1000,
-          minWidth: { xs: '90%', sm: 400 },
-          border: `1px solid ${alpha('#fff', 0.2)}`,
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
-          animation: 'float 3s ease-in-out infinite',
+          gap: 2.5,
+          zIndex: 9999,
+          minWidth: { xs: '92%', sm: 450 },
+          border: `1px solid ${alpha('#fff', 0.25)}`,
+          boxShadow: '0 15px 45px rgba(0, 0, 0, 0.4)',
+          animation: 'float 4s ease-in-out infinite',
           '@keyframes float': {
             '0%, 100%': { transform: 'translateX(-50%) translateY(0px)' },
-            '50%': { transform: 'translateX(-50%) translateY(-5px)' },
+            '50%': { transform: 'translateX(-50%) translateY(-8px)' },
           },
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <Box
             sx={{
-              width: 32,
-              height: 32,
+              width: 36,
+              height: 36,
               borderRadius: '50%',
               background: MODERN_COLORS.primary,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               fontWeight: 'bold',
-              fontSize: '0.8rem',
+              fontSize: '0.9rem',
+              boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)',
             }}
           >
             {selectedCount}
           </Box>
-          <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '0.9rem' }}>
-            {selectedCount} selected
+          <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '1rem' }}>
+            {selectedCount} message{selectedCount > 1 ? 's' : ''} selected
           </Typography>
         </Box>
         
-        <Divider orientation="vertical" flexItem sx={{ backgroundColor: alpha('#fff', 0.3), height: 24 }} />
+        <Divider orientation="vertical" flexItem sx={{ backgroundColor: alpha('#fff', 0.4), height: 28 }} />
         
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
-          <Tooltip title="Clear Selection" arrow>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+          <Tooltip title="Clear Selection" arrow placement="top">
             <AnimatedIconButton 
               size="small" 
               onClick={clearSelection}
@@ -359,7 +366,7 @@ const SelectionActionsBar = ({
             </AnimatedIconButton>
           </Tooltip>
           
-          <Tooltip title="Copy Text" arrow>
+          <Tooltip title="Copy Text" arrow placement="top">
             <AnimatedIconButton 
               size="small" 
               onClick={copySelected}
@@ -369,7 +376,7 @@ const SelectionActionsBar = ({
             </AnimatedIconButton>
           </Tooltip>
 
-          <Tooltip title="Pin Message" arrow>
+          <Tooltip title="Pin Message" arrow placement="top">
             <AnimatedIconButton 
               size="small" 
               onClick={pinSelected}
@@ -379,7 +386,7 @@ const SelectionActionsBar = ({
             </AnimatedIconButton>
           </Tooltip>
           
-          <Tooltip title="Delete Selected" arrow>
+          <Tooltip title="Delete Selected" arrow placement="top">
             <AnimatedIconButton 
               size="small" 
               onClick={deleteSelected}
@@ -389,7 +396,7 @@ const SelectionActionsBar = ({
             </AnimatedIconButton>
           </Tooltip>
           
-          <Tooltip title="Forward Selected" arrow>
+          <Tooltip title="Forward Selected" arrow placement="top">
             <AnimatedIconButton 
               size="small" 
               onClick={forwardSelected}
@@ -399,7 +406,7 @@ const SelectionActionsBar = ({
             </AnimatedIconButton>
           </Tooltip>
           
-          <Tooltip title="Download Selected" arrow>
+          <Tooltip title="Download Selected" arrow placement="top">
             <AnimatedIconButton 
               size="small" 
               onClick={downloadSelected}
@@ -410,7 +417,7 @@ const SelectionActionsBar = ({
           </Tooltip>
 
           {selectedCount === 1 && (
-            <Tooltip title="Reply to Selected" arrow>
+            <Tooltip title="Reply to Selected" arrow placement="top">
               <AnimatedIconButton 
                 size="small" 
                 onClick={replyToSelected}
@@ -443,46 +450,48 @@ const AIAssistant = ({ onAIAction, theme, onClose }) => {
     <Fade in={true}>
       <GlassPaper
         sx={{
-          m: 2,
-          mb: 1,
-          p: 2,
+          m: 2.5,
+          mb: 1.5,
+          p: 2.5,
           background: MODERN_COLORS.ai,
-          borderRadius: '16px',
-          border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
+          borderRadius: '20px',
+          border: `1px solid ${alpha(theme.palette.common.white, 0.2)}`,
           position: 'relative',
+          boxShadow: '0 10px 35px rgba(255, 107, 107, 0.3)',
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <AIIcon sx={{ color: 'white' }} />
-            <Typography variant="body2" fontWeight="bold" color="white">
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <AIIcon sx={{ color: 'white', fontSize: 24 }} />
+            <Typography variant="h6" fontWeight="bold" color="white">
               AI Assistant
             </Typography>
           </Box>
-          <IconButton size="small" onClick={onClose} sx={{ color: 'white' }}>
+          <IconButton size="small" onClick={onClose} sx={{ color: 'white', '&:hover': { background: alpha('#fff', 0.2) } }}>
             <CloseIcon fontSize="small" />
           </IconButton>
         </Box>
-        <Typography variant="caption" color="white" sx={{ opacity: 0.9, mb: 1.5, display: 'block' }}>
-          Need help with your message?
+        <Typography variant="body2" color="white" sx={{ opacity: 0.9, mb: 2, display: 'block', fontSize: '0.9rem' }}>
+          Need help with your message? Try these suggestions:
         </Typography>
-        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
           {aiSuggestions.map((suggestion, index) => (
             <Chip
               key={index}
               label={suggestion}
-              size="small"
+              size="medium"
               onClick={() => onAIAction(suggestion)}
               sx={{
-                background: alpha(theme.palette.common.white, 0.2),
+                background: alpha(theme.palette.common.white, 0.25),
                 color: 'white',
-                fontSize: '0.7rem',
-                height: '24px',
+                fontSize: '0.8rem',
+                height: '32px',
+                fontWeight: 500,
                 '&:hover': {
-                  background: alpha(theme.palette.common.white, 0.3),
-                  transform: 'scale(1.05)',
+                  background: alpha(theme.palette.common.white, 0.35),
+                  transform: 'scale(1.08)',
                 },
-                transition: 'all 0.2s ease',
+                transition: 'all 0.3s ease',
               }}
             />
           ))}
@@ -492,7 +501,7 @@ const AIAssistant = ({ onAIAction, theme, onClose }) => {
   );
 };
 
-// Enhanced Message Bubble Component with proper hover effects and reactions
+// Enhanced Message Bubble Component with superior hover effects
 const MessageBubble = React.memo(({ 
   message, 
   isOwnMessage, 
@@ -521,6 +530,17 @@ const MessageBubble = React.memo(({
   const isSelected = selectedMessages.has(message._id);
   
   const bubbleRef = useRef(null);
+
+  // Enhanced hover effects with delayed appearance
+  useEffect(() => {
+    let hoverTimer;
+    if (isHovered) {
+      hoverTimer = setTimeout(() => {
+        // Additional hover effects can be triggered here
+      }, 100);
+    }
+    return () => clearTimeout(hoverTimer);
+  }, [isHovered]);
 
   // Close reactions panel when clicking outside
   useEffect(() => {
@@ -572,26 +592,26 @@ const MessageBubble = React.memo(({
       sx={{
         display: 'flex',
         justifyContent: isOwnMessage ? 'flex-end' : 'flex-start',
-        mb: 2.5,
-        px: 2,
+        mb: 3,
+        px: 2.5,
         position: 'relative',
-        transition: 'all 0.3s ease',
+        transition: 'all 0.4s ease',
       }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      {/* Selection Checkbox */}
+      {/* Enhanced Selection Checkbox */}
       {isSelectMode && (
         <Box
           sx={{
             position: 'absolute',
-            left: isOwnMessage ? 'auto' : 8,
-            right: isOwnMessage ? 8 : 'auto',
+            left: isOwnMessage ? 'auto' : 10,
+            right: isOwnMessage ? 10 : 'auto',
             top: '50%',
             transform: 'translateY(-50%)',
-            zIndex: 2,
+            zIndex: 10,
             opacity: isHovered || isSelected ? 1 : 0,
-            transition: 'opacity 0.3s ease',
+            transition: 'all 0.4s ease',
           }}
         >
           <AnimatedIconButton
@@ -603,53 +623,61 @@ const MessageBubble = React.memo(({
             sx={{
               color: 'white',
               background: isSelected ? MODERN_COLORS.primary : MODERN_COLORS.glassDark,
-              backdropFilter: 'blur(10px)',
+              backdropFilter: 'blur(15px)',
               borderRadius: '50%',
-              border: `1px solid ${alpha(theme.palette.common.white, 0.2)}`,
+              border: `2px solid ${alpha(theme.palette.common.white, 0.3)}`,
+              width: 32,
+              height: 32,
               '&:hover': {
-                background: isSelected ? MODERN_COLORS.secondary : alpha(theme.palette.common.white, 0.1),
+                background: isSelected ? MODERN_COLORS.secondary : alpha(theme.palette.common.white, 0.15),
+                transform: 'scale(1.2)',
               },
             }}
           >
-            {isSelected ? <CheckCircleIcon sx={{ fontSize: 16 }} /> : <CheckCircleIcon sx={{ fontSize: 16, opacity: 0.5 }} />}
+            {isSelected ? 
+              <CheckCircleIcon sx={{ fontSize: 18 }} /> : 
+              <CheckCircleIcon sx={{ fontSize: 18, opacity: 0.6 }} />
+            }
           </AnimatedIconButton>
         </Box>
       )}
 
-      {/* Pin Indicator */}
+      {/* Enhanced Pin Indicator */}
       {isPinned && (
         <Box
           sx={{
             position: 'absolute',
-            left: isOwnMessage ? 'auto' : -8,
-            right: isOwnMessage ? -8 : 'auto',
-            top: -4,
-            zIndex: 2,
+            left: isOwnMessage ? 'auto' : -12,
+            right: isOwnMessage ? -12 : 'auto',
+            top: -6,
+            zIndex: 5,
           }}
         >
-          <Tooltip title="Pinned Message" arrow>
-            <LabelIcon sx={{ fontSize: 16, color: 'warning.main' }} />
+          <Tooltip title="Pinned Message" arrow placement="top">
+            <LabelIcon sx={{ fontSize: 20, color: 'warning.main', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' }} />
           </Tooltip>
         </Box>
       )}
 
       <Box sx={{ 
-        maxWidth: { xs: '85%', sm: '75%' }, 
-        minWidth: '120px', 
+        maxWidth: { xs: '88%', sm: '78%' }, 
+        minWidth: '140px', 
         position: 'relative',
-        opacity: isSelectMode && !isSelected ? 0.6 : 1,
-        transition: 'all 0.3s ease',
-        transform: isSelectMode && !isSelected ? 'scale(0.98)' : 'scale(1)',
+        opacity: isSelectMode && !isSelected ? 0.7 : 1,
+        transition: 'all 0.4s ease',
+        transform: isSelectMode && !isSelected ? 'scale(0.96)' : 'scale(1)',
+        filter: isSelectMode && !isSelected ? 'blur(0.5px)' : 'blur(0px)',
       }}>
-        {/* Sender name for group chats */}
+        {/* Enhanced Sender name for group chats */}
         {isGroup && !isOwnMessage && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, ml: 1.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5, ml: 2 }}>
             <Avatar
               src={message.senderId?.profilePic}
               sx={{ 
-                width: 20, 
-                height: 20,
-                border: `2px solid ${alpha(theme.palette.primary.main, 0.3)}`,
+                width: 24, 
+                height: 24,
+                border: `2px solid ${alpha(theme.palette.primary.main, 0.4)}`,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
               }}
             >
               {message.senderId?.fullName?.charAt(0)}
@@ -657,10 +685,10 @@ const MessageBubble = React.memo(({
             <Typography
               variant="caption"
               sx={{
-                fontWeight: 600,
+                fontWeight: 700,
                 color: 'primary.light',
-                fontSize: '0.7rem',
-                textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+                fontSize: '0.75rem',
+                textShadow: '0 1px 3px rgba(0,0,0,0.4)',
               }}
             >
               {message.senderId?.fullName || message.senderName}
@@ -668,38 +696,44 @@ const MessageBubble = React.memo(({
           </Box>
         )}
 
-        {/* Reply context */}
+        {/* Enhanced Reply context */}
         {message.replyTo && (
           <GlassPaper
             sx={{
-              p: 1.5,
-              mb: 1.5,
-              background: alpha(theme.palette.primary.main, 0.1),
-              borderLeft: `3px solid ${theme.palette.primary.main}`,
+              p: 2,
+              mb: 2,
+              background: alpha(theme.palette.primary.main, 0.15),
+              borderLeft: `4px solid ${theme.palette.primary.main}`,
               cursor: 'pointer',
-              borderRadius: '12px',
-              transition: 'all 0.3s ease',
+              borderRadius: '16px',
+              transition: 'all 0.4s ease',
               '&:hover': {
-                background: alpha(theme.palette.primary.main, 0.15),
-                transform: 'translateX(4px)',
+                background: alpha(theme.palette.primary.main, 0.2),
+                transform: 'translateX(6px)',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
               },
             }}
             onClick={() => {
               const repliedElement = document.getElementById(`message-${message.replyTo._id}`);
               if (repliedElement) {
                 repliedElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                repliedElement.style.background = alpha(theme.palette.warning.main, 0.3);
-                repliedElement.style.transition = 'background 0.3s ease';
+                repliedElement.style.background = alpha(theme.palette.warning.main, 0.4);
+                repliedElement.style.transition = 'background 0.4s ease';
                 setTimeout(() => {
                   repliedElement.style.background = '';
-                }, 2000);
+                }, 2500);
               }
             }}
           >
-            <Typography variant="caption" color="primary" fontWeight="bold" fontSize="0.7rem">
+            <Typography variant="caption" color="primary" fontWeight="bold" fontSize="0.75rem">
               Replying to {message.replyTo.senderId?._id === authUser._id ? 'yourself' : message.replyTo.senderId?.fullName}
             </Typography>
-            <Typography variant="body2" noWrap sx={{ color: 'text.secondary', fontSize: '0.8rem', mt: 0.5 }}>
+            <Typography variant="body2" noWrap sx={{ 
+              color: alpha(theme.palette.common.white, 0.9), 
+              fontSize: '0.85rem', 
+              mt: 0.75,
+              fontWeight: 500,
+            }}>
               {message.replyTo.text || 'Media message'}
             </Typography>
           </GlassPaper>
@@ -709,6 +743,16 @@ const MessageBubble = React.memo(({
           title={new Date(message.createdAt).toLocaleString()}
           placement={isOwnMessage ? "left" : "right"}
           arrow
+          PopperProps={{
+            modifiers: [
+              {
+                name: 'offset',
+                options: {
+                  offset: [0, 10],
+                },
+              },
+            ],
+          }}
         >
           <MessageBubblePaper
             id={`message-${message._id}`}
@@ -717,14 +761,18 @@ const MessageBubble = React.memo(({
             isSelected={isSelected}
             isPinned={isPinned}
             sx={{
-              p: 2,
+              p: 2.5,
               color: isOwnMessage ? 'white' : 'text.primary',
               cursor: isSelectMode ? 'pointer' : 'default',
               '&:hover': {
-                transform: isSelectMode ? 'scale(1.02)' : 'translateY(-1px)',
+                transform: isSelectMode ? 'scale(1.03)' : 'translateY(-3px) scale(1.02)',
                 '& .message-actions': {
                   opacity: 1,
-                  transform: 'translateY(0)',
+                  transform: 'translateY(0) scale(1)',
+                },
+                '& .quick-reactions': {
+                  opacity: 1,
+                  transform: 'translateY(0) scale(1)',
                 },
               },
             }}
@@ -735,36 +783,40 @@ const MessageBubble = React.memo(({
               }
             }}
           >
-            {/* Message content */}
+            {/* Message content with better readability */}
             {message.text && (
               <Box>
                 <Typography variant="body1" sx={{ 
                   wordBreak: 'break-word', 
                   whiteSpace: 'pre-wrap',
-                  fontSize: '0.95rem',
-                  lineHeight: 1.5,
-                  textShadow: isOwnMessage ? '0 1px 2px rgba(0,0,0,0.2)' : 'none',
+                  fontSize: '1rem',
+                  lineHeight: 1.6,
+                  fontWeight: 400,
+                  textShadow: isOwnMessage ? '0 1px 3px rgba(0,0,0,0.3)' : 'none',
+                  color: isOwnMessage ? 'white' : alpha(theme.palette.common.white, 0.95),
                 }}>
                   {message.text}
                 </Typography>
                 
-                {/* Translation */}
+                {/* Enhanced Translation */}
                 {translatedText && (
                   <Fade in={true}>
                     <Box
                       sx={{
-                        mt: 1,
-                        p: 1.5,
-                        background: alpha(theme.palette.common.white, 0.1),
-                        borderRadius: '8px',
-                        borderLeft: `3px solid ${theme.palette.info.main}`,
+                        mt: 1.5,
+                        p: 2,
+                        background: alpha(theme.palette.common.white, 0.15),
+                        borderRadius: '12px',
+                        borderLeft: `4px solid ${theme.palette.info.main}`,
+                        backdropFilter: 'blur(10px)',
                       }}
                     >
                       <Typography variant="body2" sx={{ 
-                        fontSize: '0.85rem',
+                        fontSize: '0.9rem',
                         fontStyle: 'italic',
-                        color: alpha(theme.palette.common.white, 0.8),
-                        lineHeight: 1.4,
+                        color: alpha(theme.palette.common.white, 0.9),
+                        lineHeight: 1.5,
+                        fontWeight: 500,
                       }}>
                         {translatedText}
                       </Typography>
@@ -774,21 +826,21 @@ const MessageBubble = React.memo(({
               </Box>
             )}
 
-            {/* Media content */}
+            {/* Enhanced Media content */}
             {message.media?.map((media, index) => (
-              <Box key={index} sx={{ mt: 1.5 }}>
+              <Box key={index} sx={{ mt: 2 }}>
                 {getFileType(media) === 'image' ? (
                   <Card
                     sx={{
                       position: 'relative',
                       overflow: 'hidden',
-                      borderRadius: '16px',
+                      borderRadius: '20px',
                       cursor: 'pointer',
-                      transition: 'all 0.3s ease',
-                      maxWidth: 300,
+                      transition: 'all 0.4s ease',
+                      maxWidth: 320,
                       '&:hover': {
-                        transform: 'scale(1.02)',
-                        boxShadow: '0 8px 25px rgba(0,0,0,0.15)',
+                        transform: 'scale(1.03)',
+                        boxShadow: '0 12px 35px rgba(0,0,0,0.25)',
                       },
                     }}
                   >
@@ -796,7 +848,14 @@ const MessageBubble = React.memo(({
                       component="img"
                       image={media}
                       alt="Shared media"
-                      sx={{ maxHeight: 300, objectFit: 'cover' }}
+                      sx={{ 
+                        maxHeight: 320, 
+                        objectFit: 'cover',
+                        transition: 'transform 0.4s ease',
+                        '&:hover': {
+                          transform: 'scale(1.05)',
+                        }
+                      }}
                       onError={(e) => {
                         e.target.style.display = 'none';
                       }}
@@ -804,14 +863,15 @@ const MessageBubble = React.memo(({
                     <Box
                       sx={{
                         position: 'absolute',
-                        top: 8,
-                        right: 8,
-                        background: alpha(theme.palette.common.black, 0.6),
+                        top: 12,
+                        right: 12,
+                        background: alpha(theme.palette.common.black, 0.7),
                         borderRadius: '50%',
-                        p: 0.5,
+                        p: 1,
+                        backdropFilter: 'blur(10px)',
                       }}
                     >
-                      <PhotoCameraIcon sx={{ fontSize: 16, color: 'white' }} />
+                      <PhotoCameraIcon sx={{ fontSize: 18, color: 'white' }} />
                     </Box>
                   </Card>
                 ) : getFileType(media) === 'video' ? (
@@ -819,8 +879,8 @@ const MessageBubble = React.memo(({
                     sx={{
                       position: 'relative',
                       overflow: 'hidden',
-                      borderRadius: '16px',
-                      maxWidth: 300,
+                      borderRadius: '20px',
+                      maxWidth: 320,
                       '&:hover .play-overlay': {
                         opacity: 1,
                       },
@@ -831,8 +891,9 @@ const MessageBubble = React.memo(({
                       controls
                       style={{
                         width: '100%',
-                        maxHeight: 300,
-                        borderRadius: '16px',
+                        maxHeight: 320,
+                        borderRadius: '20px',
+                        transition: 'transform 0.4s ease',
                       }}
                       onError={(e) => {
                         console.error("Error loading video:", media);
@@ -846,28 +907,29 @@ const MessageBubble = React.memo(({
                         left: 0,
                         right: 0,
                         bottom: 0,
-                        background: 'rgba(0,0,0,0.3)',
+                        background: 'rgba(0,0,0,0.4)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         opacity: 0,
-                        transition: 'opacity 0.3s ease',
-                        borderRadius: '16px',
+                        transition: 'opacity 0.4s ease',
+                        borderRadius: '20px',
                       }}
                     >
-                      <PlayArrowIcon sx={{ color: 'white', fontSize: 48 }} />
+                      <PlayArrowIcon sx={{ color: 'white', fontSize: 56, filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.5))' }} />
                     </Box>
                   </Box>
                 ) : getFileType(media) === 'audio' ? (
                   <Box sx={{ 
                     display: 'flex', 
                     alignItems: 'center', 
-                    gap: 2,
-                    background: alpha(theme.palette.common.black, 0.3),
-                    borderRadius: '20px',
-                    p: 2,
-                    border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
-                    maxWidth: 300,
+                    gap: 2.5,
+                    background: alpha(theme.palette.common.black, 0.4),
+                    borderRadius: '25px',
+                    p: 2.5,
+                    border: `1px solid ${alpha(theme.palette.common.white, 0.15)}`,
+                    maxWidth: 320,
+                    backdropFilter: 'blur(10px)',
                   }}>
                     <AnimatedIconButton
                       onClick={() => handlePlayAudio(media, message._id)}
@@ -875,29 +937,32 @@ const MessageBubble = React.memo(({
                       sx={{
                         background: playingAudio === message._id ? MODERN_COLORS.primary : MODERN_COLORS.glass,
                         color: 'white',
+                        width: 48,
+                        height: 48,
                       }}
                     >
                       {playingAudio === message._id ? <PauseIcon /> : <PlayArrowIcon />}
                     </AnimatedIconButton>
                     <Box sx={{ flex: 1 }}>
-                      <Typography variant="body2" sx={{ fontSize: '0.85rem', fontWeight: 500 }}>
+                      <Typography variant="body2" sx={{ fontSize: '0.9rem', fontWeight: 600, color: 'white' }}>
                         Voice message
                       </Typography>
                       <LinearProgress 
                         variant="determinate" 
                         value={playingAudio === message._id ? 70 : 0} 
                         sx={{ 
-                          mt: 1, 
-                          height: 4, 
-                          borderRadius: 2,
-                          background: alpha(theme.palette.common.white, 0.2),
+                          mt: 1.5, 
+                          height: 6, 
+                          borderRadius: 3,
+                          background: alpha(theme.palette.common.white, 0.25),
                           '& .MuiLinearProgress-bar': {
                             background: MODERN_COLORS.primary,
+                            borderRadius: 3,
                           }
                         }}
                       />
                     </Box>
-                    <Typography variant="caption" sx={{ color: alpha(theme.palette.common.white, 0.7) }}>
+                    <Typography variant="caption" sx={{ color: alpha(theme.palette.common.white, 0.8), fontWeight: 500 }}>
                       0:30
                     </Typography>
                   </Box>
@@ -911,13 +976,23 @@ const MessageBubble = React.memo(({
                     variant="outlined"
                     sx={{ 
                       cursor: 'pointer',
-                      borderRadius: '12px',
+                      borderRadius: '16px',
                       background: MODERN_COLORS.glass,
-                      backdropFilter: 'blur(10px)',
-                      border: `1px solid ${alpha(theme.palette.common.white, 0.2)}`,
+                      backdropFilter: 'blur(15px)',
+                      border: `1px solid ${alpha(theme.palette.common.white, 0.25)}`,
                       color: 'white',
+                      fontSize: '0.9rem',
+                      fontWeight: 500,
+                      padding: '12px 16px',
+                      '& .MuiChip-deleteIcon': {
+                        color: alpha(theme.palette.common.white, 0.8),
+                        '&:hover': {
+                          color: 'white',
+                        }
+                      },
                       '&:hover': {
-                        background: alpha(theme.palette.common.white, 0.15),
+                        background: alpha(theme.palette.common.white, 0.2),
+                        transform: 'scale(1.05)',
                       },
                     }}
                   />
@@ -925,20 +1000,20 @@ const MessageBubble = React.memo(({
               </Box>
             ))}
 
-            {/* Message footer */}
+            {/* Enhanced Message footer */}
             <Box
               sx={{
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                mt: 1.5,
-                gap: 1,
+                mt: 2,
+                gap: 1.5,
               }}
             >
               <Typography variant="caption" sx={{ 
-                opacity: 0.8,
-                fontSize: '0.7rem',
-                color: isOwnMessage ? alpha(theme.palette.common.white, 0.8) : 'text.secondary',
+                opacity: 0.9,
+                fontSize: '0.75rem',
+                color: isOwnMessage ? alpha(theme.palette.common.white, 0.9) : alpha(theme.palette.common.white, 0.8),
                 fontWeight: 500,
               }}>
                 {new Date(message.createdAt).toLocaleTimeString([], {
@@ -947,13 +1022,14 @@ const MessageBubble = React.memo(({
                 })}
               </Typography>
               
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 {message.isEdited && (
                   <Typography variant="caption" sx={{ 
-                    opacity: 0.7, 
+                    opacity: 0.8, 
                     fontStyle: 'italic',
-                    fontSize: '0.7rem',
-                    color: isOwnMessage ? alpha(theme.palette.common.white, 0.8) : 'text.secondary'
+                    fontSize: '0.75rem',
+                    color: isOwnMessage ? alpha(theme.palette.common.white, 0.9) : alpha(theme.palette.common.white, 0.8),
+                    fontWeight: 500,
                   }}>
                     edited
                   </Typography>
@@ -962,23 +1038,28 @@ const MessageBubble = React.memo(({
               </Box>
             </Box>
 
-            {/* Quick reactions bar that appears on hover */}
+            {/* Enhanced Quick reactions bar */}
             {isHovered && !isSelectMode && !showReactions && (
               <Fade in={isHovered}>
                 <Box
+                  className="quick-reactions"
                   sx={{
                     position: 'absolute',
-                    top: -35,
+                    top: -45,
                     left: isOwnMessage ? 'auto' : 0,
                     right: isOwnMessage ? 0 : 'auto',
                     display: 'flex',
-                    gap: 0.5,
-                    borderRadius: '20px',
+                    gap: 1,
+                    borderRadius: '25px',
                     background: MODERN_COLORS.glassDark,
-                    backdropFilter: 'blur(10px)',
-                    border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
-                    p: 0.5,
-                    zIndex: 5,
+                    backdropFilter: 'blur(20px)',
+                    border: `1px solid ${alpha(theme.palette.common.white, 0.2)}`,
+                    p: 1,
+                    zIndex: 20,
+                    opacity: 0,
+                    transform: 'translateY(10px) scale(0.9)',
+                    transition: 'all 0.3s ease',
+                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
                   }}
                 >
                   {quickReactions.map((emoji, index) => (
@@ -990,11 +1071,11 @@ const MessageBubble = React.memo(({
                         handleReactionClick(emoji);
                       }}
                       sx={{ 
-                        fontSize: '0.9rem',
-                        width: 28,
-                        height: 28,
+                        fontSize: '1.1rem',
+                        width: 32,
+                        height: 32,
                         '&:hover': {
-                          transform: 'scale(1.3)',
+                          transform: 'scale(1.4)',
                         }
                       }}
                     >
@@ -1009,9 +1090,9 @@ const MessageBubble = React.memo(({
                       setReactionsPanelOpen(true);
                     }}
                     sx={{ 
-                      width: 28,
-                      height: 28,
-                      fontSize: '0.8rem',
+                      width: 32,
+                      height: 32,
+                      fontSize: '0.9rem',
                     }}
                   >
                     <FavoriteIcon fontSize="small" />
@@ -1025,24 +1106,24 @@ const MessageBubble = React.memo(({
               <Box
                 sx={{
                   position: 'absolute',
-                  top: -50,
+                  top: -60,
                   left: isOwnMessage ? 'auto' : 0,
                   right: isOwnMessage ? 0 : 'auto',
-                  p: 1.5,
+                  p: 2,
                   display: 'flex',
-                  gap: 0.5,
-                  borderRadius: '25px',
-                  boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
-                  zIndex: 10,
-                  animation: 'slideUp 0.3s ease',
+                  gap: 1,
+                  borderRadius: '30px',
+                  boxShadow: '0 15px 45px rgba(0,0,0,0.4)',
+                  zIndex: 25,
+                  animation: 'slideUp 0.4s ease',
                   background: MODERN_COLORS.glassDark,
-                  backdropFilter: 'blur(20px)',
-                  border: `1px solid ${alpha(theme.palette.common.white, 0.2)}`,
+                  backdropFilter: 'blur(25px)',
+                  border: `1px solid ${alpha(theme.palette.common.white, 0.25)}`,
                   flexWrap: 'wrap',
                   width: 'auto',
-                  minWidth: 200,
+                  minWidth: 240,
                   '@keyframes slideUp': {
-                    '0%': { transform: 'translateY(10px) scale(0.9)', opacity: 0 },
+                    '0%': { transform: 'translateY(15px) scale(0.9)', opacity: 0 },
                     '100%': { transform: 'translateY(0) scale(1)', opacity: 1 },
                   },
                 }}
@@ -1056,12 +1137,12 @@ const MessageBubble = React.memo(({
                       handleReactionClick(emoji);
                     }}
                     sx={{ 
-                      fontSize: '1.1rem',
-                      width: 32,
-                      height: 32,
+                      fontSize: '1.2rem',
+                      width: 36,
+                      height: 36,
                       '&:hover': {
-                        transform: 'scale(1.4)',
-                        background: alpha(theme.palette.primary.main, 0.2),
+                        transform: 'scale(1.5)',
+                        background: alpha(theme.palette.primary.main, 0.3),
                       }
                     }}
                   >
@@ -1077,19 +1158,19 @@ const MessageBubble = React.memo(({
                 className="message-actions"
                 sx={{
                   position: 'absolute',
-                  top: -12,
-                  right: isOwnMessage ? 'auto' : -12,
-                  left: isOwnMessage ? -12 : 'auto',
-                  opacity: isHovered ? 1 : 0,
-                  transform: isHovered ? 'translateY(0)' : 'translateY(10px)',
-                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  top: -16,
+                  right: isOwnMessage ? 'auto' : -16,
+                  left: isOwnMessage ? -16 : 'auto',
+                  opacity: 0,
+                  transform: 'translateY(15px) scale(0.9)',
+                  transition: 'all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
                   display: 'flex',
-                  gap: 0.5,
-                  zIndex: 1,
+                  gap: 1,
+                  zIndex: 5,
                 }}
               >
                 {message.text && !translatedText && (
-                  <Tooltip title="Translate" arrow>
+                  <Tooltip title="Translate" arrow placement="top">
                     <AnimatedIconButton
                       size="small"
                       onClick={(e) => {
@@ -1100,14 +1181,16 @@ const MessageBubble = React.memo(({
                       sx={{
                         background: MODERN_COLORS.glassDark,
                         color: 'white',
+                        width: 32,
+                        height: 32,
                         '&:hover': {
                           background: MODERN_COLORS.primary,
-                          transform: 'scale(1.1)',
+                          transform: 'scale(1.2)',
                         },
                       }}
                     >
                       {isTranslating ? (
-                        <CircularProgress size={16} color="inherit" />
+                        <CircularProgress size={18} color="inherit" />
                       ) : (
                         <TranslateIcon fontSize="small" />
                       )}
@@ -1115,7 +1198,7 @@ const MessageBubble = React.memo(({
                   </Tooltip>
                 )}
 
-                <Tooltip title="More Options" arrow>
+                <Tooltip title="More Options" arrow placement="top">
                   <AnimatedIconButton
                     size="small"
                     onClick={(e) => {
@@ -1125,9 +1208,11 @@ const MessageBubble = React.memo(({
                     sx={{
                       background: MODERN_COLORS.glassDark,
                       color: 'white',
+                      width: 32,
+                      height: 32,
                       '&:hover': {
                         background: MODERN_COLORS.primary,
-                        transform: 'scale(1.1)',
+                        transform: 'scale(1.2)',
                       },
                     }}
                   >
@@ -1143,14 +1228,14 @@ const MessageBubble = React.memo(({
         {message.reactions && message.reactions.length > 0 && (
           <Box sx={{ 
             display: 'flex', 
-            gap: 0.5, 
-            mt: 1, 
+            gap: 1, 
+            mt: 1.5, 
             flexWrap: 'wrap',
             justifyContent: isOwnMessage ? 'flex-end' : 'flex-start',
-            animation: 'fadeIn 0.3s ease',
+            animation: 'fadeIn 0.4s ease',
             maxWidth: '100%',
             '@keyframes fadeIn': {
-              '0%': { opacity: 0, transform: 'translateY(5px)' },
+              '0%': { opacity: 0, transform: 'translateY(8px)' },
               '100%': { opacity: 1, transform: 'translateY(0)' },
             },
           }}>
@@ -1160,10 +1245,10 @@ const MessageBubble = React.memo(({
                 <Chip
                   key={`${reaction.emoji}-${index}`}
                   label={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                      <span style={{ fontSize: '0.8rem' }}>{reaction.emoji}</span>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                      <span style={{ fontSize: '0.9rem' }}>{reaction.emoji}</span>
                       {reaction.count > 1 && (
-                        <Typography variant="caption" sx={{ fontSize: '0.7rem', fontWeight: 600 }}>
+                        <Typography variant="caption" sx={{ fontSize: '0.75rem', fontWeight: 700 }}>
                           {reaction.count}
                         </Typography>
                       )}
@@ -1181,23 +1266,23 @@ const MessageBubble = React.memo(({
                   color={hasReacted ? "primary" : "default"}
                   variant={hasReacted ? "filled" : "outlined"}
                   sx={{
-                    borderRadius: '16px',
-                    fontSize: '0.7rem',
-                    height: '26px',
+                    borderRadius: '18px',
+                    fontSize: '0.8rem',
+                    height: '28px',
                     background: hasReacted 
                       ? MODERN_COLORS.primary 
                       : MODERN_COLORS.glass,
-                    backdropFilter: 'blur(10px)',
-                    border: `1px solid ${alpha(theme.palette.common.white, 0.2)}`,
+                    backdropFilter: 'blur(15px)',
+                    border: `1px solid ${alpha(theme.palette.common.white, 0.25)}`,
                     color: 'white',
-                    transition: 'all 0.3s ease',
+                    transition: 'all 0.4s ease',
                     cursor: 'pointer',
                     '&:hover': {
-                      transform: 'scale(1.05)',
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                      transform: 'scale(1.08)',
+                      boxShadow: '0 6px 20px rgba(0,0,0,0.25)',
                       background: hasReacted 
                         ? MODERN_COLORS.secondary 
-                        : alpha(theme.palette.common.white, 0.15),
+                        : alpha(theme.palette.common.white, 0.2),
                     },
                   }}
                 />
@@ -1210,7 +1295,7 @@ const MessageBubble = React.memo(({
   );
 });
 
-// Enhanced Mobile Drawer for additional options
+// Enhanced Mobile Drawer
 const MobileOptionsDrawer = ({ open, onClose, onClearChat, onSearch, onSelectMode }) => {
   return (
     <SwipeableDrawer
@@ -1221,17 +1306,18 @@ const MobileOptionsDrawer = ({ open, onClose, onClearChat, onSearch, onSelectMod
       sx={{
         '& .MuiDrawer-paper': {
           background: MODERN_COLORS.glassDark,
-          backdropFilter: 'blur(20px)',
-          borderTopLeftRadius: '20px',
-          borderTopRightRadius: '20px',
-          border: `1px solid ${alpha('#fff', 0.1)}`,
+          backdropFilter: 'blur(25px)',
+          borderTopLeftRadius: '25px',
+          borderTopRightRadius: '25px',
+          border: `1px solid ${alpha('#fff', 0.2)}`,
           color: 'white',
+          boxShadow: '0 -10px 40px rgba(0, 0, 0, 0.4)',
         },
       }}
     >
-      <Box sx={{ p: 2 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
-          <Box sx={{ width: 40, height: 4, background: alpha('#fff', 0.3), borderRadius: 2 }} />
+      <Box sx={{ p: 2.5 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2.5 }}>
+          <Box sx={{ width: 48, height: 5, background: alpha('#fff', 0.4), borderRadius: 3 }} />
         </Box>
         
         <List>
@@ -1241,12 +1327,23 @@ const MobileOptionsDrawer = ({ open, onClose, onClearChat, onSearch, onSelectMod
               onSearch();
               onClose();
             }}
-            sx={{ borderRadius: '12px', mb: 1 }}
+            sx={{ 
+              borderRadius: '16px', 
+              mb: 1.5,
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                background: alpha('#fff', 0.15),
+                transform: 'translateX(5px)',
+              }
+            }}
           >
             <ListItemIcon>
-              <SearchIcon sx={{ color: 'white' }} />
+              <SearchIcon sx={{ color: 'white', fontSize: 24 }} />
             </ListItemIcon>
-            <ListItemText primary="Search Messages" />
+            <ListItemText 
+              primary="Search Messages" 
+              primaryTypographyProps={{ fontSize: '1rem', fontWeight: 500 }}
+            />
           </ListItem>
           
           <ListItem 
@@ -1255,12 +1352,23 @@ const MobileOptionsDrawer = ({ open, onClose, onClearChat, onSearch, onSelectMod
               onSelectMode();
               onClose();
             }}
-            sx={{ borderRadius: '12px', mb: 1 }}
+            sx={{ 
+              borderRadius: '16px', 
+              mb: 1.5,
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                background: alpha('#fff', 0.15),
+                transform: 'translateX(5px)',
+              }
+            }}
           >
             <ListItemIcon>
-              <SelectAllIcon sx={{ color: 'white' }} />
+              <SelectAllIcon sx={{ color: 'white', fontSize: 24 }} />
             </ListItemIcon>
-            <ListItemText primary="Select Messages" />
+            <ListItemText 
+              primary="Select Messages" 
+              primaryTypographyProps={{ fontSize: '1rem', fontWeight: 500 }}
+            />
           </ListItem>
           
           <ListItem 
@@ -1269,12 +1377,23 @@ const MobileOptionsDrawer = ({ open, onClose, onClearChat, onSearch, onSelectMod
               onClearChat();
               onClose();
             }}
-            sx={{ borderRadius: '12px', mb: 1 }}
+            sx={{ 
+              borderRadius: '16px', 
+              mb: 1.5,
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                background: alpha('#ff4444', 0.2),
+                transform: 'translateX(5px)',
+              }
+            }}
           >
             <ListItemIcon>
-              <ClearAllIcon sx={{ color: 'error.main' }} />
+              <ClearAllIcon sx={{ color: 'error.main', fontSize: 24 }} />
             </ListItemIcon>
-            <ListItemText primary="Clear Chat" sx={{ color: 'error.main' }} />
+            <ListItemText 
+              primary="Clear Chat" 
+              primaryTypographyProps={{ fontSize: '1rem', fontWeight: 500, color: 'error.main' }}
+            />
           </ListItem>
         </List>
       </Box>
@@ -2152,6 +2271,47 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
     }
   }, [input, showAIAssistant]);
 
+  // Enhanced background animation
+  const BackgroundAnimation = () => (
+    <Box
+      sx={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: MODERN_COLORS.background,
+        overflow: 'hidden',
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          top: '10%',
+          left: '10%',
+          width: '300px',
+          height: '300px',
+          background: 'radial-gradient(circle, rgba(102, 126, 234, 0.15) 0%, transparent 70%)',
+          borderRadius: '50%',
+          animation: 'float 8s ease-in-out infinite',
+        },
+        '&::after': {
+          content: '""',
+          position: 'absolute',
+          bottom: '10%',
+          right: '10%',
+          width: '400px',
+          height: '400px',
+          background: 'radial-gradient(circle, rgba(118, 75, 162, 0.1) 0%, transparent 70%)',
+          borderRadius: '50%',
+          animation: 'float 12s ease-in-out infinite reverse',
+        },
+        '@keyframes float': {
+          '0%, 100%': { transform: 'translateY(0px) rotate(0deg)' },
+          '50%': { transform: 'translateY(-20px) rotate(180deg)' },
+        },
+      }}
+    />
+  );
+
   if (!selectedUser) {
     return (
       <Box
@@ -2164,47 +2324,39 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
           color: 'text.secondary',
           textAlign: 'center',
           p: 3,
-          background: MODERN_COLORS.dark,
+          background: MODERN_COLORS.background,
           backgroundSize: 'cover',
           position: 'relative',
           overflow: 'hidden',
-          '&::before': {
-            content: '""',
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: `radial-gradient(circle at 30% 30%, ${alpha('#667eea', 0.1)} 0%, transparent 50%),
-                        radial-gradient(circle at 70% 70%, ${alpha('#764ba2', 0.1)} 0%, transparent 50%)`,
-          },
         }}
       >
+        <BackgroundAnimation />
         <Box
           sx={{
             position: 'relative',
             zIndex: 1,
             background: MODERN_COLORS.glass,
-            backdropFilter: 'blur(20px)',
-            borderRadius: '24px',
-            p: 4,
-            border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
+            backdropFilter: 'blur(25px)',
+            borderRadius: '28px',
+            p: 5,
+            border: `1px solid ${alpha(theme.palette.common.white, 0.2)}`,
+            boxShadow: '0 15px 45px rgba(0, 0, 0, 0.3)',
           }}
         >
-          <PsychologyIcon sx={{ fontSize: 80, mb: 2, opacity: 0.8, color: 'primary.main' }} />
-          <Typography variant="h4" gutterBottom fontWeight="bold" sx={{ 
+          <PsychologyIcon sx={{ fontSize: 90, mb: 3, opacity: 0.9, color: 'primary.main' }} />
+          <Typography variant="h3" gutterBottom fontWeight="bold" sx={{ 
             background: MODERN_COLORS.primary,
             backgroundClip: 'text',
             textFillColor: 'transparent',
-            mb: 2,
+            mb: 3,
+            fontSize: { xs: '2rem', md: '2.5rem' },
           }}>
             AI Chat Messenger
           </Typography>
-          <Typography variant="h6" sx={{ color: alpha(theme.palette.common.white, 0.8), mb: 1 }}>
+          <Typography variant="h5" sx={{ color: alpha(theme.palette.common.white, 0.9), mb: 2, fontWeight: 500 }}>
             Welcome to Modern Chat
           </Typography>
-          <Typography variant="body1" sx={{ color: alpha(theme.palette.common.white, 0.6) }}>
+          <Typography variant="body1" sx={{ color: alpha(theme.palette.common.white, 0.7), fontSize: '1.1rem' }}>
             Select a conversation to start messaging
           </Typography>
         </Box>
@@ -2219,21 +2371,12 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
       display: 'flex', 
       flexDirection: 'column', 
       height: '100%', 
-      background: MODERN_COLORS.dark,
+      background: MODERN_COLORS.background,
       position: 'relative',
       overflow: 'hidden',
-      '&::before': {
-        content: '""',
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: `radial-gradient(circle at 20% 20%, ${alpha('#667eea', 0.05)} 0%, transparent 50%),
-                    radial-gradient(circle at 80% 80%, ${alpha('#764ba2', 0.05)} 0%, transparent 50%)`,
-        pointerEvents: 'none',
-      },
     }}>
+      <BackgroundAnimation />
+      
       {/* Connection Status Indicator */}
       {!isOnline && (
         <Slide direction="down" in={!isOnline}>
@@ -2241,11 +2384,12 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
             severity="warning" 
             sx={{ 
               borderRadius: 0, 
-              py: 1,
-              background: alpha(theme.palette.warning.main, 0.1),
-              backdropFilter: 'blur(10px)',
-              border: `1px solid ${alpha(theme.palette.warning.main, 0.2)}`,
+              py: 1.5,
+              background: alpha(theme.palette.warning.main, 0.15),
+              backdropFilter: 'blur(15px)',
+              border: `1px solid ${alpha(theme.palette.warning.main, 0.3)}`,
               color: 'warning.light',
+              zIndex: 1000,
             }}
           >
             You are currently offline. Messages will be sent when connection is restored.
@@ -2253,19 +2397,19 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
         </Slide>
       )}
 
-      {/* Header */}
+      {/* Enhanced Header */}
       <GradientAppBar 
         position="static" 
         elevation={0}
       >
-        <Toolbar sx={{ py: 1 }}>
+        <Toolbar sx={{ py: 1.5 }}>
           {isMobile && (
             <AnimatedIconButton
               edge="start"
               color="inherit"
               onClick={onBack}
               sx={{ 
-                mr: 1, 
+                mr: 1.5, 
                 color: 'white',
               }}
             >
@@ -2284,23 +2428,25 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
             }}
             sx={{
               '& .MuiBadge-dot': {
-                width: 12,
-                height: 12,
+                width: 14,
+                height: 14,
                 borderRadius: '50%',
                 border: `2px solid ${theme.palette.background.paper}`,
+                boxShadow: '0 2px 8px rgba(76, 175, 80, 0.5)',
               },
             }}
           >
             <Avatar
               src={selectedUser.profilePic || selectedUser.image}
               sx={{ 
-                width: 44, 
-                height: 44, 
+                width: 48, 
+                height: 48, 
                 cursor: 'pointer',
-                border: `2px solid ${alpha(theme.palette.primary.main, 0.3)}`,
+                border: `2px solid ${alpha(theme.palette.primary.main, 0.4)}`,
                 background: MODERN_COLORS.primary,
+                boxShadow: '0 4px 20px rgba(102, 126, 234, 0.4)',
                 '&:hover': {
-                  transform: 'scale(1.05)',
+                  transform: 'scale(1.08)',
                   transition: 'transform 0.3s ease',
                 }
               }}
@@ -2310,44 +2456,44 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
             </Avatar>
           </Badge>
           
-          <Box sx={{ flex: 1, ml: 2, minWidth: 0, cursor: 'pointer' }} onClick={onOpenProfile}>
-            <Typography variant="h6" noWrap fontWeight="600" color="white" sx={{ textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
+          <Box sx={{ flex: 1, ml: 2.5, minWidth: 0, cursor: 'pointer' }} onClick={onOpenProfile}>
+            <Typography variant="h6" noWrap fontWeight="700" color="white" sx={{ textShadow: '0 1px 3px rgba(0,0,0,0.4)', fontSize: '1.1rem' }}>
               {selectedUser.fullName || selectedUser.name}
             </Typography>
-            <Box sx={{ color: alpha(theme.palette.common.white, 0.7), fontSize: '0.875rem', noWrap: true }}>
+            <Box sx={{ color: alpha(theme.palette.common.white, 0.8), fontSize: '0.9rem', noWrap: true, mt: 0.5 }}>
               {isTyping ? (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Box sx={{ display: 'flex', gap: 0.5 }}>
-                    <Box sx={{ width: 4, height: 4, borderRadius: '50%', background: theme.palette.primary.main, animation: 'bounce 1s infinite' }} />
-                    <Box sx={{ width: 4, height: 4, borderRadius: '50%', background: theme.palette.primary.main, animation: 'bounce 1s infinite 0.1s' }} />
-                    <Box sx={{ width: 4, height: 4, borderRadius: '50%', background: theme.palette.primary.main, animation: 'bounce 1s infinite 0.2s' }} />
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <Box sx={{ display: 'flex', gap: 0.75 }}>
+                    <Box sx={{ width: 6, height: 6, borderRadius: '50%', background: theme.palette.primary.main, animation: 'bounce 1.2s infinite' }} />
+                    <Box sx={{ width: 6, height: 6, borderRadius: '50%', background: theme.palette.primary.main, animation: 'bounce 1.2s infinite 0.1s' }} />
+                    <Box sx={{ width: 6, height: 6, borderRadius: '50%', background: theme.palette.primary.main, animation: 'bounce 1.2s infinite 0.2s' }} />
                   </Box>
-                  <span style={{ fontStyle: 'italic', fontSize: '0.8rem' }}>typing...</span>
+                  <span style={{ fontStyle: 'italic', fontSize: '0.85rem', fontWeight: 500 }}>typing...</span>
                 </Box>
               ) : isGroup ? (
                 `${selectedUser.members?.length || 0} members • ${onlineUsers.filter(id => selectedUser.members?.some(m => m._id === id)).length} online`
               ) : (
                 onlineUsers.includes(selectedUser._id) ? 
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Box sx={{ width: 8, height: 8, borderRadius: '50%', background: MODERN_COLORS.success, animation: 'pulse 2s infinite' }} />
-                  <span>Online</span>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <Box sx={{ width: 10, height: 10, borderRadius: '50%', background: '#4CAF50', animation: 'pulse 2s infinite', boxShadow: '0 0 10px rgba(76, 175, 80, 0.5)' }} />
+                  <span style={{ fontWeight: 500 }}>Online</span>
                 </Box> : 
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Box sx={{ width: 8, height: 8, borderRadius: '50%', background: alpha(theme.palette.common.white, 0.5) }} />
-                  <span>Offline</span>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <Box sx={{ width: 10, height: 10, borderRadius: '50%', background: alpha(theme.palette.common.white, 0.6) }} />
+                  <span style={{ fontWeight: 500 }}>Offline</span>
                 </Box>
               )}
             </Box>
           </Box>
 
-          {/* Header Actions */}
-          <Box sx={{ display: 'flex', gap: 0.5 }}>
-            <Tooltip title="Search Messages" arrow>
+          {/* Enhanced Header Actions */}
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Tooltip title="Search Messages" arrow placement="bottom">
               <AnimatedIconButton 
                 onClick={() => setIsSearching(!isSearching)}
                 sx={{ 
                   color: isSearching ? 'primary.main' : 'white',
-                  background: isSearching ? alpha(theme.palette.primary.main, 0.2) : 'transparent',
+                  background: isSearching ? alpha(theme.palette.primary.main, 0.25) : 'transparent',
                 }}
               >
                 <SearchIcon />
@@ -2356,19 +2502,19 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
 
             {!isMobile && (
               <>
-                <Tooltip title={isSelectMode ? "Exit Selection" : "Select Messages"} arrow>
+                <Tooltip title={isSelectMode ? "Exit Selection" : "Select Messages"} arrow placement="bottom">
                   <AnimatedIconButton 
                     onClick={() => setIsSelectMode(!isSelectMode)}
                     sx={{ 
                       color: isSelectMode ? 'primary.main' : 'white',
-                      background: isSelectMode ? alpha(theme.palette.primary.main, 0.2) : 'transparent',
+                      background: isSelectMode ? alpha(theme.palette.primary.main, 0.25) : 'transparent',
                     }}
                   >
                     <SelectAllIcon />
                   </AnimatedIconButton>
                 </Tooltip>
 
-                <Tooltip title="More Options" arrow>
+                <Tooltip title="More Options" arrow placement="bottom">
                   <AnimatedIconButton 
                     onClick={(e) => setMoreOptionsAnchor(e.currentTarget)}
                     sx={{ color: 'white' }}
@@ -2380,7 +2526,7 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
             )}
 
             {isMobile && (
-              <Tooltip title="Options" arrow>
+              <Tooltip title="Options" arrow placement="bottom">
                 <AnimatedIconButton 
                   onClick={() => setMobileDrawerOpen(true)}
                   sx={{ color: 'white' }}
@@ -2390,7 +2536,7 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
               </Tooltip>
             )}
 
-            <Tooltip title="View Profile" arrow>
+            <Tooltip title="View Profile" arrow placement="bottom">
               <AnimatedIconButton 
                 onClick={onOpenProfile} 
                 sx={{ color: 'white' }}
@@ -2401,10 +2547,10 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
           </Box>
         </Toolbar>
 
-        {/* Search Bar */}
+        {/* Enhanced Search Bar */}
         {isSearching && (
           <Collapse in={isSearching}>
-            <Box sx={{ px: 2, pb: 1 }}>
+            <Box sx={{ px: 2.5, pb: 1.5 }}>
               <ModernTextField
                 fullWidth
                 size="small"
@@ -2412,12 +2558,12 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
                 value={searchQuery}
                 onChange={(e) => handleSearch(e.target.value)}
                 InputProps={{
-                  startAdornment: <SearchIcon sx={{ color: alpha(theme.palette.common.white, 0.5), mr: 1 }} />,
+                  startAdornment: <SearchIcon sx={{ color: alpha(theme.palette.common.white, 0.6), mr: 1.5 }} />,
                   endAdornment: searchQuery && (
                     <IconButton
                       size="small"
                       onClick={() => handleSearch('')}
-                      sx={{ color: alpha(theme.palette.common.white, 0.5) }}
+                      sx={{ color: alpha(theme.palette.common.white, 0.6), '&:hover': { color: 'white' } }}
                     >
                       <CloseIcon />
                     </IconButton>
@@ -2425,12 +2571,12 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
                 }}
                 sx={{
                   '& .MuiOutlinedInput-root': {
-                    background: alpha(theme.palette.common.white, 0.05),
+                    background: alpha(theme.palette.common.white, 0.08),
                   },
                 }}
               />
               {searchQuery && (
-                <Typography variant="caption" sx={{ color: alpha(theme.palette.common.white, 0.7), mt: 0.5, display: 'block' }}>
+                <Typography variant="caption" sx={{ color: alpha(theme.palette.common.white, 0.8), mt: 1, display: 'block', fontWeight: 500 }}>
                   {filteredMessages.length} result{filteredMessages.length !== 1 ? 's' : ''} found
                 </Typography>
               )}
@@ -2439,24 +2585,24 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
         )}
       </GradientAppBar>
 
-      {/* Messages Area */}
+      {/* Enhanced Messages Area */}
       <Box
         ref={scrollContainerRef}
         sx={{
           flex: 1,
           overflow: 'auto',
-          p: 1,
+          p: 1.5,
           background: 'transparent',
           position: 'relative',
           '&::-webkit-scrollbar': {
-            width: 6,
+            width: 8,
           },
           '&::-webkit-scrollbar-track': {
             background: 'transparent',
           },
           '&::-webkit-scrollbar-thumb': {
             background: MODERN_COLORS.primary,
-            borderRadius: 3,
+            borderRadius: 4,
             '&:hover': {
               background: MODERN_COLORS.secondary,
             },
@@ -2468,18 +2614,19 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
             <Alert 
               severity="error" 
               sx={{ 
-                m: 2, 
-                background: alpha(theme.palette.error.main, 0.1),
-                backdropFilter: 'blur(10px)',
-                border: `1px solid ${alpha(theme.palette.error.main, 0.2)}`,
+                m: 2.5, 
+                background: alpha(theme.palette.error.main, 0.15),
+                backdropFilter: 'blur(15px)',
+                border: `1px solid ${alpha(theme.palette.error.main, 0.3)}`,
                 color: 'error.light',
-                borderRadius: '12px',
+                borderRadius: '16px',
+                boxShadow: '0 6px 25px rgba(244, 67, 54, 0.2)',
               }}
               action={
                 <Button 
                   size="small" 
                   onClick={() => loadMessages(true)} 
-                  sx={{ color: 'error.light' }}
+                  sx={{ color: 'error.light', fontWeight: 500 }}
                 >
                   Retry
                 </Button>
@@ -2498,7 +2645,7 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
               alignItems: 'center',
               justifyContent: 'center',
               height: '100%',
-              color: alpha(theme.palette.common.white, 0.7),
+              color: alpha(theme.palette.common.white, 0.8),
               textAlign: 'center',
               p: 3,
             }}
@@ -2506,35 +2653,35 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
             <Box
               sx={{
                 background: MODERN_COLORS.glass,
-                backdropFilter: 'blur(20px)',
-                borderRadius: '24px',
-                p: 4,
-                border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
-                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
-                maxWidth: 400,
+                backdropFilter: 'blur(25px)',
+                borderRadius: '28px',
+                p: 5,
+                border: `1px solid ${alpha(theme.palette.common.white, 0.15)}`,
+                boxShadow: '0 15px 45px rgba(0, 0, 0, 0.3)',
+                maxWidth: 450,
               }}
             >
               {isSearching ? (
                 <>
-                  <SmsFailedIcon sx={{ fontSize: 64, mb: 2, opacity: 0.5, color: 'primary.main' }} />
+                  <SmsFailedIcon sx={{ fontSize: 72, mb: 2.5, opacity: 0.6, color: 'primary.main' }} />
                   <Typography variant="h5" gutterBottom color="white" fontWeight="bold">
                     No results found
                   </Typography>
-                  <Typography variant="body1" color={alpha(theme.palette.common.white, 0.6)}>
+                  <Typography variant="body1" color={alpha(theme.palette.common.white, 0.7)} sx={{ mt: 1 }}>
                     No messages match your search criteria
                   </Typography>
                 </>
               ) : (
                 <>
-                  <CelebrationIcon sx={{ fontSize: 64, mb: 2, opacity: 0.5, color: 'primary.main' }} />
+                  <CelebrationIcon sx={{ fontSize: 72, mb: 2.5, opacity: 0.6, color: 'primary.main' }} />
                   <Typography variant="h5" gutterBottom color="white" fontWeight="bold">
                     No messages yet
                   </Typography>
-                  <Typography variant="body1" color={alpha(theme.palette.common.white, 0.6)}>
+                  <Typography variant="body1" color={alpha(theme.palette.common.white, 0.7)} sx={{ mt: 1 }}>
                     Start the conversation by sending a message!
                   </Typography>
                   {!isOnline && (
-                    <Typography variant="caption" color="warning.main" sx={{ mt: 2, display: 'block' }}>
+                    <Typography variant="caption" color="warning.main" sx={{ mt: 2, display: 'block', fontWeight: 500 }}>
                       You are offline. Connect to the internet to send messages.
                     </Typography>
                   )}
@@ -2569,25 +2716,26 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
         )}
         
         {isTyping && (
-          <Box sx={{ display: 'flex', justifyContent: 'flex-start', px: 2, mb: 2 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'flex-start', px: 2.5, mb: 2.5 }}>
             <GlassPaper
               sx={{
-                p: 2,
-                background: alpha(theme.palette.primary.main, 0.1),
-                borderRadius: '20px',
+                p: 2.5,
+                background: alpha(theme.palette.primary.main, 0.15),
+                borderRadius: '25px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: 1.5,
-                boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+                gap: 2,
+                boxShadow: '0 6px 25px rgba(0,0,0,0.15)',
                 animation: 'pulse 2s infinite',
+                backdropFilter: 'blur(15px)',
               }}
             >
-              <Box sx={{ display: 'flex', gap: 0.5 }}>
-                <Box sx={{ width: 6, height: 6, borderRadius: '50%', background: theme.palette.primary.main, animation: 'bounce 1s infinite' }} />
-                <Box sx={{ width: 6, height: 6, borderRadius: '50%', background: theme.palette.primary.main, animation: 'bounce 1s infinite 0.1s' }} />
-                <Box sx={{ width: 6, height: 6, borderRadius: '50%', background: theme.palette.primary.main, animation: 'bounce 1s infinite 0.2s' }} />
+              <Box sx={{ display: 'flex', gap: 0.75 }}>
+                <Box sx={{ width: 8, height: 8, borderRadius: '50%', background: theme.palette.primary.main, animation: 'bounce 1.2s infinite' }} />
+                <Box sx={{ width: 8, height: 8, borderRadius: '50%', background: theme.palette.primary.main, animation: 'bounce 1.2s infinite 0.1s' }} />
+                <Box sx={{ width: 8, height: 8, borderRadius: '50%', background: theme.palette.primary.main, animation: 'bounce 1.2s infinite 0.2s' }} />
               </Box>
-              <Typography variant="body2" color={alpha(theme.palette.common.white, 0.8)} sx={{ fontStyle: 'italic' }}>
+              <Typography variant="body2" color={alpha(theme.palette.common.white, 0.9)} sx={{ fontStyle: 'italic', fontWeight: 500 }}>
                 typing...
               </Typography>
             </GlassPaper>
@@ -2621,36 +2769,42 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
         copySelected={copySelectedMessages}
       />
 
-      {/* Reply Preview */}
+      {/* Enhanced Reply Preview */}
       {replyingTo && (
         <Slide direction="up" in={!!replyingTo}>
           <GlassPaper
             variant="outlined"
             sx={{
-              m: 2,
-              mb: 1,
-              p: 2,
-              background: alpha(theme.palette.primary.main, 0.1),
-              borderLeft: `3px solid ${theme.palette.primary.main}`,
-              borderRadius: '16px',
-              border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
-              animation: 'slideIn 0.3s ease',
+              m: 2.5,
+              mb: 1.5,
+              p: 2.5,
+              background: alpha(theme.palette.primary.main, 0.15),
+              borderLeft: `4px solid ${theme.palette.primary.main}`,
+              borderRadius: '20px',
+              border: `1px solid ${alpha(theme.palette.common.white, 0.15)}`,
+              animation: 'slideIn 0.4s ease',
+              backdropFilter: 'blur(15px)',
               '@keyframes slideIn': {
-                '0%': { transform: 'translateY(20px)', opacity: 0 },
+                '0%': { transform: 'translateY(25px)', opacity: 0 },
                 '100%': { transform: 'translateY(0)', opacity: 1 },
               },
             }}
           >
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <Box sx={{ flex: 1 }}>
-                <Typography variant="caption" color="primary" fontWeight="bold" fontSize="0.75rem">
+                <Typography variant="caption" color="primary" fontWeight="bold" fontSize="0.8rem">
                   Replying to {replyingTo.senderId?._id === authUser._id ? 'yourself' : replyingTo.senderId?.fullName}
                 </Typography>
-                <Typography variant="body2" noWrap sx={{ color: alpha(theme.palette.common.white, 0.8), fontSize: '0.85rem', mt: 0.5 }}>
+                <Typography variant="body2" noWrap sx={{ 
+                  color: alpha(theme.palette.common.white, 0.9), 
+                  fontSize: '0.9rem', 
+                  mt: 1,
+                  fontWeight: 500,
+                }}>
                   {replyingTo.text || 'Media message'}
                 </Typography>
               </Box>
-              <AnimatedIconButton size="small" onClick={() => setReplyingTo(null)} sx={{ color: 'white' }}>
+              <AnimatedIconButton size="small" onClick={() => setReplyingTo(null)} sx={{ color: 'white', ml: 1 }}>
                 <ClearIcon fontSize="small" />
               </AnimatedIconButton>
             </Box>
@@ -2658,28 +2812,34 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
         </Slide>
       )}
 
-      {/* Edit Preview */}
+      {/* Enhanced Edit Preview */}
       {editingMessage && (
         <Slide direction="up" in={!!editingMessage}>
           <GlassPaper
             variant="outlined"
             sx={{
-              m: 2,
-              mb: 1,
-              p: 2,
-              background: alpha(theme.palette.warning.main, 0.1),
-              borderLeft: `3px solid ${theme.palette.warning.main}`,
-              borderRadius: '16px',
-              border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
-              animation: 'slideIn 0.3s ease',
+              m: 2.5,
+              mb: 1.5,
+              p: 2.5,
+              background: alpha(theme.palette.warning.main, 0.15),
+              borderLeft: `4px solid ${theme.palette.warning.main}`,
+              borderRadius: '20px',
+              border: `1px solid ${alpha(theme.palette.common.white, 0.15)}`,
+              animation: 'slideIn 0.4s ease',
+              backdropFilter: 'blur(15px)',
             }}
           >
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <Box sx={{ flex: 1 }}>
-                <Typography variant="caption" color="warning.main" fontWeight="bold" fontSize="0.75rem">
+                <Typography variant="caption" color="warning.main" fontWeight="bold" fontSize="0.8rem">
                   Editing message
                 </Typography>
-                <Typography variant="body2" noWrap sx={{ color: alpha(theme.palette.common.white, 0.8), fontSize: '0.85rem', mt: 0.5 }}>
+                <Typography variant="body2" noWrap sx={{ 
+                  color: alpha(theme.palette.common.white, 0.9), 
+                  fontSize: '0.9rem', 
+                  mt: 1,
+                  fontWeight: 500,
+                }}>
                   {editingMessage.text}
                 </Typography>
               </Box>
@@ -2689,7 +2849,7 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
                   setEditingMessage(null);
                   setInput('');
                 }}
-                sx={{ color: 'white' }}
+                sx={{ color: 'white', ml: 1 }}
               >
                 <ClearIcon fontSize="small" />
               </AnimatedIconButton>
@@ -2698,28 +2858,33 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
         </Slide>
       )}
 
-      {/* Input Area */}
+      {/* Enhanced Input Area */}
       <GlassPaper
         elevation={0}
         sx={{
-          p: 2,
+          p: 2.5,
           borderRadius: 0,
-          borderTop: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
+          borderTop: `1px solid ${alpha(theme.palette.common.white, 0.15)}`,
           background: MODERN_COLORS.glassDark,
-          backdropFilter: 'blur(20px)',
+          backdropFilter: 'blur(25px)',
           position: 'relative',
         }}
       >
-        {/* File Preview */}
+        {/* Enhanced File Preview */}
         {mediaFiles.length > 0 && (
-          <Box sx={{ mb: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+          <Box sx={{ mb: 2.5, display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
             {mediaFiles.map((file, index) => (
               <Chip
                 key={index}
                 icon={getFileIcon(file.name)}
                 label={
                   <Box>
-                    <Typography variant="caption" display="block" noWrap sx={{ maxWidth: 120, color: 'white', fontWeight: 500 }}>
+                    <Typography variant="caption" display="block" noWrap sx={{ 
+                      maxWidth: 140, 
+                      color: 'white', 
+                      fontWeight: 600,
+                      fontSize: '0.8rem',
+                    }}>
                       {file.name}
                     </Typography>
                     {uploadProgress[index] !== undefined && (
@@ -2727,12 +2892,13 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
                         variant="determinate" 
                         value={uploadProgress[index]} 
                         sx={{ 
-                          width: 60, 
-                          height: 4, 
-                          borderRadius: 2,
-                          background: alpha(theme.palette.common.white, 0.2),
+                          width: 80, 
+                          height: 5, 
+                          borderRadius: 2.5,
+                          background: alpha(theme.palette.common.white, 0.25),
                           '& .MuiLinearProgress-bar': {
                             background: MODERN_COLORS.primary,
+                            borderRadius: 2.5,
                           }
                         }}
                       />
@@ -2749,21 +2915,25 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
                 }}
                 variant="outlined"
                 sx={{ 
-                  maxWidth: 200,
-                  borderRadius: '16px',
-                  border: `1px solid ${alpha(theme.palette.common.white, 0.2)}`,
+                  maxWidth: 220,
+                  borderRadius: '18px',
+                  border: `1px solid ${alpha(theme.palette.common.white, 0.25)}`,
                   color: 'white',
                   background: MODERN_COLORS.glass,
-                  backdropFilter: 'blur(10px)',
+                  backdropFilter: 'blur(15px)',
+                  padding: '10px 16px',
                   '& .MuiChip-deleteIcon': {
-                    color: alpha(theme.palette.common.white, 0.7),
+                    color: alpha(theme.palette.common.white, 0.8),
+                    fontSize: '1.1rem',
                     '&:hover': {
                       color: 'white',
                     }
                   },
                   '&:hover': {
-                    background: alpha(theme.palette.common.white, 0.15),
-                  }
+                    background: alpha(theme.palette.common.white, 0.2),
+                    transform: 'scale(1.05)',
+                  },
+                  transition: 'all 0.3s ease',
                 }}
               />
             ))}
@@ -2773,17 +2943,20 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
         <Box
           component="form"
           onSubmit={handleSendMessage}
-          sx={{ display: 'flex', alignItems: 'flex-end', gap: 1.5 }}
+          sx={{ display: 'flex', alignItems: 'flex-end', gap: 2 }}
         >
-          {/* AI Assistant Toggle */}
-          <Tooltip title="AI Assistant" arrow>
+          {/* Enhanced AI Assistant Toggle */}
+          <Tooltip title="AI Assistant" arrow placement="top">
             <AnimatedIconButton 
               onClick={() => setShowAIAssistant(!showAIAssistant)}
               sx={{
                 background: showAIAssistant ? MODERN_COLORS.ai : 'transparent',
                 color: 'white',
+                width: 48,
+                height: 48,
                 '&:hover': {
                   background: MODERN_COLORS.ai,
+                  transform: 'scale(1.15)',
                 }
               }}
             >
@@ -2791,15 +2964,18 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
             </AnimatedIconButton>
           </Tooltip>
 
-          {/* Attachment Button */}
-          <Tooltip title="Attach files" arrow>
+          {/* Enhanced Attachment Button */}
+          <Tooltip title="Attach files" arrow placement="top">
             <AnimatedIconButton 
               onClick={() => fileInputRef.current?.click()}
               sx={{
                 background: MODERN_COLORS.secondary,
                 color: 'white',
+                width: 48,
+                height: 48,
                 '&:hover': {
                   background: MODERN_COLORS.primary,
+                  transform: 'scale(1.15)',
                 }
               }}
             >
@@ -2816,7 +2992,7 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
             accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt,.zip"
           />
 
-          {/* Emoji Picker */}
+          {/* Enhanced Emoji Picker */}
           {showEmoji && (
             <Box 
               ref={emojiPickerRef}
@@ -2825,11 +3001,11 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
                 bottom: '100%', 
                 left: isMobile ? 0 : 'auto',
                 right: isMobile ? 'auto' : 0,
-                zIndex: 10,
-                mb: 2,
-                animation: 'slideUp 0.3s ease',
+                zIndex: 1000,
+                mb: 2.5,
+                animation: 'slideUp 0.4s ease',
                 '@keyframes slideUp': {
-                  '0%': { transform: 'translateY(10px)', opacity: 0 },
+                  '0%': { transform: 'translateY(15px)', opacity: 0 },
                   '100%': { transform: 'translateY(0)', opacity: 1 },
                 },
               }}
@@ -2843,19 +3019,28 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
                 set="apple"
                 showPreview={false}
                 showSkinTones={false}
+                style={{ 
+                  borderRadius: '20px',
+                  border: `1px solid ${alpha(theme.palette.common.white, 0.2)}`,
+                  background: MODERN_COLORS.glassDark,
+                  backdropFilter: 'blur(25px)',
+                }}
               />
             </Box>
           )}
 
-          <Tooltip title="Add emoji" arrow>
+          <Tooltip title="Add emoji" arrow placement="top">
             <AnimatedIconButton
               onClick={() => setShowEmoji(!showEmoji)}
               sx={{
                 background: showEmoji ? MODERN_COLORS.primary : 'transparent',
-                color: showEmoji ? 'white' : alpha(theme.palette.common.white, 0.7),
+                color: showEmoji ? 'white' : alpha(theme.palette.common.white, 0.8),
+                width: 48,
+                height: 48,
                 '&:hover': {
                   background: MODERN_COLORS.primary,
                   color: 'white',
+                  transform: 'scale(1.15)',
                 }
               }}
             >
@@ -2883,21 +3068,24 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
           />
 
           {isRecordingSupported && (
-            <Tooltip title={recording ? "Stop recording" : "Voice message"} arrow>
+            <Tooltip title={recording ? "Stop recording" : "Voice message"} arrow placement="top">
               <AnimatedIconButton
                 onClick={handleVoiceRecord}
                 disabled={!isOnline}
                 sx={{
                   background: recording ? MODERN_COLORS.error : 'transparent',
-                  color: recording ? 'white' : alpha(theme.palette.common.white, 0.7),
-                  animation: recording ? 'pulse 1s infinite' : 'none',
+                  color: recording ? 'white' : alpha(theme.palette.common.white, 0.8),
+                  animation: recording ? 'pulse 1.2s infinite' : 'none',
+                  width: 48,
+                  height: 48,
                   '&:hover': {
                     background: recording ? MODERN_COLORS.error : MODERN_COLORS.primary,
                     color: 'white',
+                    transform: 'scale(1.15)',
                   },
                   '&:disabled': {
                     background: 'transparent',
-                    color: alpha(theme.palette.common.white, 0.3),
+                    color: alpha(theme.palette.common.white, 0.4),
                   },
                   '@keyframes pulse': {
                     '0%': { transform: 'scale(1)' },
@@ -2916,13 +3104,17 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
             size="medium"
             type="submit"
             disabled={(!input.trim() && mediaFiles.length === 0) || recording || !isOnline}
+            sx={{
+              width: 56,
+              height: 56,
+            }}
           >
             {editingMessage ? <EditIcon /> : <SendIcon />}
           </FloatingActionButton>
         </Box>
       </GlassPaper>
 
-      {/* Mobile Options Drawer */}
+      {/* Enhanced Mobile Options Drawer */}
       <MobileOptionsDrawer
         open={mobileDrawerOpen}
         onClose={() => setMobileDrawerOpen(false)}
@@ -2933,7 +3125,7 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
 
       {/* ============ DIALOGS AND MENUS ============ */}
 
-      {/* Message Context Menu */}
+      {/* Enhanced Message Context Menu */}
       <Menu
         anchorEl={anchorEl}
         open={Boolean(anchorEl)}
@@ -2944,19 +3136,23 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
         PaperProps={{
           sx: {
             background: MODERN_COLORS.glassDark,
-            backdropFilter: 'blur(20px)',
-            border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
-            borderRadius: '12px',
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+            backdropFilter: 'blur(25px)',
+            border: `1px solid ${alpha(theme.palette.common.white, 0.2)}`,
+            borderRadius: '16px',
+            boxShadow: '0 15px 45px rgba(0, 0, 0, 0.4)',
             color: 'white',
+            minWidth: 180,
             '& .MuiMenuItem-root': {
+              fontSize: '0.9rem',
+              fontWeight: 500,
+              padding: '12px 16px',
               '&:hover': {
-                background: alpha(theme.palette.common.white, 0.1),
+                background: alpha(theme.palette.common.white, 0.15),
               },
             },
-            animation: 'scaleIn 0.2s ease',
+            animation: 'scaleIn 0.3s ease',
             '@keyframes scaleIn': {
-              '0%': { transform: 'scale(0.95)', opacity: 0 },
+              '0%': { transform: 'scale(0.9)', opacity: 0 },
               '100%': { transform: 'scale(1)', opacity: 1 },
             },
           }
@@ -3028,7 +3224,7 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
         )}
       </Menu>
 
-      {/* More Options Menu */}
+      {/* Enhanced More Options Menu */}
       <Menu
         anchorEl={moreOptionsAnchor}
         open={Boolean(moreOptionsAnchor)}
@@ -3036,17 +3232,21 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
         PaperProps={{
           sx: {
             background: MODERN_COLORS.glassDark,
-            backdropFilter: 'blur(20px)',
-            border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
-            borderRadius: '12px',
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+            backdropFilter: 'blur(25px)',
+            border: `1px solid ${alpha(theme.palette.common.white, 0.2)}`,
+            borderRadius: '16px',
+            boxShadow: '0 15px 45px rgba(0, 0, 0, 0.4)',
             color: 'white',
+            minWidth: 200,
             '& .MuiMenuItem-root': {
+              fontSize: '0.9rem',
+              fontWeight: 500,
+              padding: '12px 16px',
               '&:hover': {
-                background: alpha(theme.palette.common.white, 0.1),
+                background: alpha(theme.palette.common.white, 0.15),
               },
             },
-            animation: 'scaleIn 0.2s ease',
+            animation: 'scaleIn 0.3s ease',
           }
         }}
       >
@@ -3090,7 +3290,7 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
           <ListItemText primary="Mute Notifications" />
         </MenuItem>
 
-        <Divider sx={{ backgroundColor: alpha(theme.palette.common.white, 0.1), my: 1 }} />
+        <Divider sx={{ backgroundColor: alpha(theme.palette.common.white, 0.15), my: 1 }} />
 
         <MenuItem onClick={() => {
           toast.success("Chat reported");
@@ -3103,7 +3303,7 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
         </MenuItem>
       </Menu>
 
-      {/* Forward Dialog */}
+      {/* Enhanced Forward Dialog */}
       <Dialog
         open={forwardDialogOpen}
         onClose={() => setForwardDialogOpen(false)}
@@ -3111,13 +3311,13 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
         fullWidth
         PaperProps={{
           sx: {
-            borderRadius: '20px',
+            borderRadius: '25px',
             background: MODERN_COLORS.glassDark,
-            backdropFilter: 'blur(20px)',
-            border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.4)',
+            backdropFilter: 'blur(25px)',
+            border: `1px solid ${alpha(theme.palette.common.white, 0.2)}`,
+            boxShadow: '0 25px 70px rgba(0, 0, 0, 0.5)',
             color: 'white',
-            animation: 'scaleIn 0.3s ease',
+            animation: 'scaleIn 0.4s ease',
           }
         }}
       >
@@ -3128,7 +3328,8 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
           backgroundClip: 'text',
           textFillColor: 'transparent',
           fontWeight: 'bold',
-          fontSize: '1.25rem',
+          fontSize: '1.4rem',
+          py: 3,
         }}>
           Forward {selectedMessages.size} Message{selectedMessages.size > 1 ? 's' : ''}
           <IconButton
@@ -3136,35 +3337,41 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
             onClick={() => setForwardDialogOpen(false)}
             sx={{
               position: 'absolute',
-              right: 12,
-              top: 12,
+              right: 16,
+              top: 16,
               color: 'white',
             }}
           >
             <CloseIcon />
           </IconButton>
         </DialogTitle>
-        <DialogContent sx={{ p: 3 }}>
-          <Typography variant="body2" sx={{ mb: 2, color: alpha(theme.palette.common.white, 0.7), textAlign: 'center' }}>
+        <DialogContent sx={{ p: 3.5 }}>
+          <Typography variant="body2" sx={{ 
+            mb: 3, 
+            color: alpha(theme.palette.common.white, 0.8), 
+            textAlign: 'center',
+            fontSize: '0.95rem',
+            fontWeight: 500,
+          }}>
             Select recipients to forward to:
           </Typography>
           
-          <List sx={{ maxHeight: 300, overflow: 'auto' }}>
+          <List sx={{ maxHeight: 350, overflow: 'auto' }}>
             {usersForForward.map((user) => (
               <ListItem
                 key={user._id}
                 sx={{
-                  borderRadius: '12px',
-                  mb: 1,
+                  borderRadius: '16px',
+                  mb: 1.5,
                   background: selectedForwardUsers.has(user._id) 
-                    ? alpha(theme.palette.primary.main, 0.2) 
+                    ? alpha(theme.palette.primary.main, 0.25) 
                     : MODERN_COLORS.glass,
-                  backdropFilter: 'blur(10px)',
-                  border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
+                  backdropFilter: 'blur(15px)',
+                  border: `1px solid ${alpha(theme.palette.common.white, 0.15)}`,
                   transition: 'all 0.3s ease',
                   '&:hover': {
-                    background: alpha(theme.palette.common.white, 0.1),
-                    transform: 'translateX(4px)',
+                    background: alpha(theme.palette.common.white, 0.15),
+                    transform: 'translateX(6px)',
                   },
                 }}
               >
@@ -3172,9 +3379,10 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
                   <Avatar 
                     src={user.profilePic} 
                     sx={{ 
-                      width: 44, 
-                      height: 44,
-                      border: `2px solid ${alpha(theme.palette.primary.main, 0.3)}`,
+                      width: 48, 
+                      height: 48,
+                      border: `2px solid ${alpha(theme.palette.primary.main, 0.4)}`,
+                      boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
                     }}
                   >
                     {user.fullName?.charAt(0)}
@@ -3183,14 +3391,15 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
                 <ListItemText 
                   primary={user.fullName} 
                   secondary={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                       <Box 
                         sx={{ 
-                          width: 8, 
-                          height: 8, 
+                          width: 10, 
+                          height: 10, 
                           borderRadius: '50%', 
-                          background: onlineUsers.includes(user._id) ? MODERN_COLORS.success : alpha(theme.palette.common.white, 0.5),
+                          background: onlineUsers.includes(user._id) ? MODERN_COLORS.success : alpha(theme.palette.common.white, 0.6),
                           animation: onlineUsers.includes(user._id) ? 'pulse 2s infinite' : 'none',
+                          boxShadow: onlineUsers.includes(user._id) ? '0 0 10px rgba(76, 175, 80, 0.5)' : 'none',
                         }} 
                       />
                       {onlineUsers.includes(user._id) ? 'Online' : 'Offline'}
@@ -3199,20 +3408,26 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
                   primaryTypographyProps={{ 
                     color: 'white', 
                     fontWeight: 600,
-                    fontSize: '0.95rem',
+                    fontSize: '1rem',
                   }}
                   secondaryTypographyProps={{ 
-                    color: alpha(theme.palette.common.white, 0.7),
-                    fontSize: '0.8rem',
+                    color: alpha(theme.palette.common.white, 0.8),
+                    fontSize: '0.85rem',
+                    fontWeight: 500,
                   }}
                 />
                 <AnimatedIconButton
                   onClick={() => toggleForwardUserSelection(user._id)}
                   sx={{
                     color: selectedForwardUsers.has(user._id) ? 'primary.main' : 'white',
+                    width: 40,
+                    height: 40,
                   }}
                 >
-                  {selectedForwardUsers.has(user._id) ? <CheckCircleIcon /> : <CheckCircleIcon sx={{ opacity: 0.5 }} />}
+                  {selectedForwardUsers.has(user._id) ? 
+                    <CheckCircleIcon sx={{ fontSize: 24 }} /> : 
+                    <CheckCircleIcon sx={{ fontSize: 24, opacity: 0.5 }} />
+                  }
                 </AnimatedIconButton>
               </ListItem>
             ))}
@@ -3223,28 +3438,34 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
               variant="body2" 
               textAlign="center" 
               sx={{ 
-                color: alpha(theme.palette.common.white, 0.5), 
-                py: 4,
+                color: alpha(theme.palette.common.white, 0.6), 
+                py: 5,
                 fontStyle: 'italic',
+                fontSize: '1rem',
               }}
             >
               No available contacts to forward to
             </Typography>
           )}
         </DialogContent>
-        <DialogActions sx={{ p: 3, gap: 2 }}>
+        <DialogActions sx={{ p: 3.5, gap: 2.5 }}>
           <Button 
             onClick={() => setForwardDialogOpen(false)}
             sx={{ 
               color: 'white',
               background: MODERN_COLORS.glass,
-              backdropFilter: 'blur(10px)',
-              border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
-              borderRadius: '12px',
-              px: 3,
+              backdropFilter: 'blur(15px)',
+              border: `1px solid ${alpha(theme.palette.common.white, 0.15)}`,
+              borderRadius: '14px',
+              px: 4,
+              py: 1.5,
+              fontSize: '0.95rem',
+              fontWeight: 600,
               '&:hover': {
-                background: alpha(theme.palette.common.white, 0.1),
+                background: alpha(theme.palette.common.white, 0.15),
+                transform: 'scale(1.05)',
               },
+              transition: 'all 0.3s ease',
             }}
           >
             Cancel
@@ -3255,21 +3476,23 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
             disabled={selectedForwardUsers.size === 0}
             sx={{
               background: MODERN_COLORS.primary,
-              backdropFilter: 'blur(10px)',
-              border: `1px solid ${alpha(theme.palette.common.white, 0.2)}`,
-              borderRadius: '12px',
-              px: 3,
+              backdropFilter: 'blur(15px)',
+              border: `1px solid ${alpha(theme.palette.common.white, 0.25)}`,
+              borderRadius: '14px',
+              px: 4,
+              py: 1.5,
+              fontSize: '0.95rem',
               fontWeight: 'bold',
               '&:hover': {
                 background: MODERN_COLORS.secondary,
-                transform: 'translateY(-2px)',
-                boxShadow: '0 8px 25px rgba(102, 126, 234, 0.3)',
+                transform: 'translateY(-3px) scale(1.05)',
+                boxShadow: '0 12px 35px rgba(102, 126, 234, 0.4)',
               },
               '&:disabled': {
                 background: alpha(theme.palette.common.white, 0.1),
-                color: alpha(theme.palette.common.white, 0.3),
+                color: alpha(theme.palette.common.white, 0.4),
               },
-              transition: 'all 0.3s ease',
+              transition: 'all 0.4s ease',
             }}
           >
             Forward
@@ -3277,7 +3500,7 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
         </DialogActions>
       </Dialog>
 
-      {/* Clear Chat Dialog */}
+      {/* Enhanced Clear Chat Dialog */}
       <Dialog
         open={clearChatDialogOpen}
         onClose={() => setClearChatDialogOpen(false)}
@@ -3285,13 +3508,13 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
         fullWidth
         PaperProps={{
           sx: {
-            borderRadius: '20px',
+            borderRadius: '25px',
             background: MODERN_COLORS.glassDark,
-            backdropFilter: 'blur(20px)',
-            border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.4)',
+            backdropFilter: 'blur(25px)',
+            border: `1px solid ${alpha(theme.palette.common.white, 0.2)}`,
+            boxShadow: '0 25px 70px rgba(0, 0, 0, 0.5)',
             color: 'white',
-            animation: 'scaleIn 0.3s ease',
+            animation: 'scaleIn 0.4s ease',
           }
         }}
       >
@@ -3299,44 +3522,56 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
           color: 'white', 
           textAlign: 'center',
           fontWeight: 'bold',
-          fontSize: '1.25rem',
+          fontSize: '1.4rem',
+          py: 3,
         }}>
           Clear Chat
         </DialogTitle>
-        <DialogContent sx={{ textAlign: 'center', p: 3 }}>
+        <DialogContent sx={{ textAlign: 'center', p: 3.5 }}>
           <Box
             sx={{
-              width: 80,
-              height: 80,
+              width: 90,
+              height: 90,
               borderRadius: '50%',
-              background: alpha(theme.palette.error.main, 0.1),
+              background: alpha(theme.palette.error.main, 0.15),
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              margin: '0 auto 16px',
-              border: `2px solid ${alpha(theme.palette.error.main, 0.3)}`,
+              margin: '0 auto 20px',
+              border: `3px solid ${alpha(theme.palette.error.main, 0.4)}`,
+              boxShadow: '0 8px 25px rgba(244, 67, 54, 0.3)',
             }}
           >
-            <DeleteIcon sx={{ fontSize: 40, color: 'error.main' }} />
+            <DeleteIcon sx={{ fontSize: 48, color: 'error.main' }} />
           </Box>
-          <Typography variant="body2" sx={{ color: alpha(theme.palette.common.white, 0.8), lineHeight: 1.6 }}>
+          <Typography variant="body2" sx={{ 
+            color: alpha(theme.palette.common.white, 0.9), 
+            lineHeight: 1.7,
+            fontSize: '1rem',
+            fontWeight: 500,
+          }}>
             Are you sure you want to clear this chat? This action cannot be undone and will remove all messages from your view.
           </Typography>
         </DialogContent>
-        <DialogActions sx={{ p: 3, gap: 2 }}>
+        <DialogActions sx={{ p: 3.5, gap: 2.5 }}>
           <Button 
             onClick={() => setClearChatDialogOpen(false)}
             sx={{ 
               color: 'white',
               background: MODERN_COLORS.glass,
-              backdropFilter: 'blur(10px)',
-              border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
-              borderRadius: '12px',
-              px: 3,
+              backdropFilter: 'blur(15px)',
+              border: `1px solid ${alpha(theme.palette.common.white, 0.15)}`,
+              borderRadius: '14px',
+              px: 4,
+              py: 1.5,
               flex: 1,
+              fontSize: '0.95rem',
+              fontWeight: 600,
               '&:hover': {
-                background: alpha(theme.palette.common.white, 0.1),
+                background: alpha(theme.palette.common.white, 0.15),
+                transform: 'scale(1.05)',
               },
+              transition: 'all 0.3s ease',
             }}
           >
             Cancel
@@ -3347,18 +3582,20 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
             color="error"
             sx={{
               background: MODERN_COLORS.error,
-              backdropFilter: 'blur(10px)',
-              border: `1px solid ${alpha(theme.palette.error.main, 0.3)}`,
-              borderRadius: '12px',
-              px: 3,
+              backdropFilter: 'blur(15px)',
+              border: `1px solid ${alpha(theme.palette.error.main, 0.4)}`,
+              borderRadius: '14px',
+              px: 4,
+              py: 1.5,
               flex: 1,
+              fontSize: '0.95rem',
               fontWeight: 'bold',
               '&:hover': {
                 background: '#d32f2f',
-                transform: 'translateY(-2px)',
-                boxShadow: '0 8px 25px rgba(244, 67, 54, 0.3)',
+                transform: 'translateY(-3px) scale(1.05)',
+                boxShadow: '0 12px 35px rgba(244, 67, 54, 0.4)',
               },
-              transition: 'all 0.3s ease',
+              transition: 'all 0.4s ease',
             }}
           >
             Clear Chat
@@ -3366,7 +3603,7 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
         </DialogActions>
       </Dialog>
 
-      {/* Upload Snackbar */}
+      {/* Enhanced Upload Snackbar */}
       <Snackbar
         open={uploadSnackbar.open}
         autoHideDuration={6000}
@@ -3379,15 +3616,18 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
           icon={false}
           sx={{
             background: MODERN_COLORS.primary,
-            backdropFilter: 'blur(20px)',
-            border: `1px solid ${alpha(theme.palette.common.white, 0.2)}`,
-            borderRadius: '12px',
+            backdropFilter: 'blur(25px)',
+            border: `1px solid ${alpha(theme.palette.common.white, 0.25)}`,
+            borderRadius: '16px',
             color: 'white',
-            boxShadow: '0 8px 32px rgba(102, 126, 234, 0.3)',
+            boxShadow: '0 12px 35px rgba(102, 126, 234, 0.4)',
+            fontSize: '0.95rem',
+            fontWeight: 500,
             '& .MuiAlert-message': {
               display: 'flex',
               alignItems: 'center',
-              gap: 1,
+              gap: 1.5,
+              padding: '8px 0',
             },
           }}
           action={
@@ -3401,25 +3641,29 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
             </IconButton>
           }
         >
-          <CircularProgress size={16} sx={{ color: 'white' }} />
+          <CircularProgress size={20} sx={{ color: 'white' }} />
           {uploadSnackbar.message}
         </Alert>
       </Snackbar>
 
-      {/* CSS Animations */}
+      {/* Enhanced CSS Animations */}
       <GlobalStyles
         styles={{
           '@keyframes bounce': {
             '0%, 100%': { transform: 'translateY(0)' },
-            '50%': { transform: 'translateY(-5px)' },
+            '50%': { transform: 'translateY(-8px)' },
           },
           '@keyframes pulse': {
             '0%, 100%': { opacity: 1 },
-            '50%': { opacity: 0.5 },
+            '50%': { opacity: 0.6 },
           },
           '@keyframes float': {
             '0%, 100%': { transform: 'translateY(0px)' },
-            '50%': { transform: 'translateY(-10px)' },
+            '50%': { transform: 'translateY(-15px)' },
+          },
+          '@keyframes slideIn': {
+            '0%': { transform: 'translateY(20px)', opacity: 0 },
+            '100%': { transform: 'translateY(0)', opacity: 1 },
           },
         }}
       />
