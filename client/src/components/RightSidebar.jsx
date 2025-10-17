@@ -1,7 +1,5 @@
-import React, { useContext, useState, useEffect } from "react";
-import assets from "../assets/assets";
-import { ChatContext } from "../../context/ChatContext";
-import { AuthContext } from "../../context/AuthContext";
+import React, { useContext, useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { 
   X, 
   Image, 
@@ -18,12 +16,108 @@ import {
   MapPin,
   Link,
   Download,
-  FileText
+  FileText,
+  Star,
+  Pin,
+  Volume2,
+  VolumeX,
+  Bell,
+  BellOff,
+  Search,
+  Shield as ShieldIcon,
+  Users,
+  Settings,
+  Trash2,
+  MessageCircle,
+  Camera,
+  Music,
+  File,
+  AlertTriangle,
+  CheckCircle,
+  Crown,
+  MoreVertical,
+  Edit3,
+  ExternalLink,
+  Play,
+  Pause
 } from "lucide-react";
 import { FiUsers, FiSettings, FiTrash2 } from "react-icons/fi";
 import toast from "react-hot-toast";
+import assets from "../assets/assets";
+import { ChatContext } from "../../context/ChatContext";
+import { AuthContext } from "../../context/AuthContext";
 
-const RightSidebar = ({ onClose }) => {
+// Modern gradient colors with glass morphism
+const MODERN_COLORS = {
+  primary: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+  secondary: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+  success: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+  warning: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+  error: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+  dark: 'linear-gradient(135deg, #0f0f1a 0%, #1c1c2e 100%)',
+  glass: 'rgba(255, 255, 255, 0.08)',
+  glassDark: 'rgba(15, 15, 26, 0.85)',
+};
+
+const GlassCard = ({ children, className = '', onClick }) => (
+  <motion.div 
+    className={`bg-white/5 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-2xl shadow-purple-500/10 ${className}`}
+    whileHover={{ y: -2, scale: 1.02 }}
+    whileTap={{ scale: 0.98 }}
+    onClick={onClick}
+  >
+    {children}
+  </motion.div>
+);
+
+const AnimatedIconButton = ({ children, onClick, className = '', ...props }) => (
+  <motion.button
+    className={`p-2 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10 text-gray-300 hover:text-white transition-all duration-300 hover:bg-white/10 hover:border-white/20 ${className}`}
+    onClick={onClick}
+    whileHover={{ scale: 1.05, y: -2 }}
+    whileTap={{ scale: 0.95 }}
+    {...props}
+  >
+    {children}
+  </motion.button>
+);
+
+const StatCard = ({ value, label, icon: Icon, color = "purple" }) => (
+  <GlassCard className="p-4 text-center">
+    <div className={`w-12 h-12 mx-auto mb-2 rounded-2xl bg-${color}-500/20 backdrop-blur-sm border border-${color}-500/30 flex items-center justify-center`}>
+      <Icon className={`w-6 h-6 text-${color}-400`} />
+    </div>
+    <p className="text-2xl font-bold text-white">{value}</p>
+    <p className="text-xs text-gray-400">{label}</p>
+  </GlassCard>
+);
+
+const MediaGrid = ({ media, onMediaClick }) => (
+  <div className="grid grid-cols-3 gap-2">
+    {media.map((item, index) => (
+      <motion.div
+        key={index}
+        className="relative group cursor-pointer"
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={() => onMediaClick(item)}
+      >
+        <img
+          src={item.url || item}
+          alt={`Media ${index + 1}`}
+          className="w-full h-24 object-cover rounded-xl border border-white/10 group-hover:border-white/30 transition-all duration-300"
+        />
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all duration-300 rounded-xl flex items-center justify-center">
+          {item.type === 'video' && (
+            <Play className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+          )}
+        </div>
+      </motion.div>
+    ))}
+  </div>
+);
+
+const RightSidebar = ({ onClose, isMobile = false }) => {
   const { 
     selectedUser, 
     selectedGroup,
@@ -35,30 +129,92 @@ const RightSidebar = ({ onClose }) => {
     removeMemberFromGroup,
     users,
     leaveGroup,
-    updateGroupInfo
+    updateGroupInfo,
+    muteChat,
+    unmuteChat,
+    pinnedMessages,
+    clearChat,
+    downloadFile,
+    getFileType,
+    getFileIcon,
+    chatMedia,
+    sharedLinks,
+    sharedDocs,
+    sharedLocations
   } = useContext(ChatContext);
   const { authUser, onlineUsers } = useContext(AuthContext);
 
   const [activeTab, setActiveTab] = useState("info");
-  const [chatMedia, setChatMedia] = useState([]);
   const [showAddMember, setShowAddMember] = useState(false);
   const [newMemberSearch, setNewMemberSearch] = useState("");
   const [showRemoveMember, setShowRemoveMember] = useState(null);
   const [editGroupInfo, setEditGroupInfo] = useState(false);
   const [groupName, setGroupName] = useState("");
   const [groupDescription, setGroupDescription] = useState("");
-  const [sharedLinks, setSharedLinks] = useState([]);
-  const [sharedDocs, setSharedDocs] = useState([]);
-  const [voiceCallModal, setVoiceCallModal] = useState(false);
-  const [videoCallModal, setVideoCallModal] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedMedia, setSelectedMedia] = useState(null);
+  const [playingAudio, setPlayingAudio] = useState(null);
+  const [mediaFilter, setMediaFilter] = useState("all");
 
   const currentChat = selectedUser || selectedGroup;
+  const audioRef = useRef(null);
+
+  // Enhanced particle background
+  const ParticleBackground = () => {
+    const particles = Array.from({ length: 20 }, (_, i) => ({
+      id: i,
+      size: Math.random() * 3 + 1,
+      x: Math.random() * 100,
+      y: Math.random() * 100,
+      duration: Math.random() * 20 + 10,
+      delay: Math.random() * 5
+    }));
+
+    return (
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {particles.map(particle => (
+          <motion.div
+            key={particle.id}
+            className="absolute rounded-full bg-gradient-to-r from-purple-500/20 to-blue-500/20"
+            style={{
+              width: `${particle.size}px`,
+              height: `${particle.size}px`,
+              left: `${particle.x}%`,
+              top: `${particle.y}%`,
+            }}
+            animate={{
+              y: [0, -20, 0],
+              x: [0, 8, 0],
+              opacity: [0, 0.6, 0],
+            }}
+            transition={{
+              duration: particle.duration,
+              repeat: Infinity,
+              delay: particle.delay,
+            }}
+          />
+        ))}
+      </div>
+    );
+  };
 
   if (!currentChat) {
     return (
-      <div className="bg-[#1c1c2e] h-full w-full border-l border-gray-700 flex flex-col">
-        <div className="flex items-center justify-center h-full text-gray-400">
-          No chat selected
+      <div className="bg-gradient-to-br from-purple-900/50 via-slate-900/50 to-slate-900/50 h-full w-full border-l border-white/10 flex flex-col backdrop-blur-3xl relative">
+        <ParticleBackground />
+        <div className="flex items-center justify-center h-full text-gray-400 relative z-10">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center"
+          >
+            <div className="w-20 h-20 mx-auto mb-4 rounded-3xl bg-gradient-to-br from-purple-500/20 to-blue-500/20 backdrop-blur-sm border border-white/10 flex items-center justify-center">
+              <MessageCircle className="w-10 h-10 text-white/60" />
+            </div>
+            <p className="text-white/60 text-lg font-medium">Select a chat</p>
+            <p className="text-white/40 text-sm mt-2">Start a conversation to see details here</p>
+          </motion.div>
         </div>
       </div>
     );
@@ -69,64 +225,23 @@ const RightSidebar = ({ onClose }) => {
   const isAdmin = isGroup && currentChat.admin?.toString() === authUser?._id?.toString();
   const isMember = isGroup && currentChat.members?.some(member => member._id === authUser?._id);
 
-  // Extract media from messages
-  useEffect(() => {
-    if (currentChat && messages.length > 0) {
-      const chatMessages = messages.filter(msg => 
-        msg.receiverId === currentChat._id || msg.senderId === currentChat._id
-      );
-      
-      const media = chatMessages
-        .filter(msg => msg.media && msg.media.length > 0)
-        .flatMap(msg => msg.media)
-        .filter(url => typeof url === 'string' && url.includes('http'));
-      setChatMedia([...new Set(media)]);
-    } else {
-      setChatMedia([]);
-    }
-  }, [currentChat, messages]);
+  // Enhanced media extraction with filtering
+  const enhancedChatMedia = chatMedia?.map(media => ({
+    url: media,
+    type: getFileType(media),
+    name: media.split('/').pop()
+  })) || [];
 
-  // Extract shared links and documents from messages
-  useEffect(() => {
-    if (currentChat && messages.length > 0) {
-      const chatMessages = messages.filter(msg => 
-        msg.receiverId === currentChat._id || msg.senderId === currentChat._id
-      );
-
-      // Extract links
-      const links = chatMessages
-        .filter(msg => msg.text && typeof msg.text === 'string')
-        .map(msg => {
-          const urlRegex = /https?:\/\/[^\s]+/g;
-          const links = msg.text.match(urlRegex);
-          return links ? links.map(link => ({ 
-            link, 
-            timestamp: msg.createdAt,
-            sender: msg.senderId === authUser?._id ? 'You' : (isGroup ? msg.senderName : currentChat.fullName)
-          })) : [];
-        })
-        .flat();
-      setSharedLinks([...new Set(links)]);
-
-      // Extract documents
-      const docs = chatMessages
-        .filter(msg => msg.media && msg.media.length > 0)
-        .flatMap(msg => 
-          msg.media.map(mediaUrl => ({
-            url: mediaUrl,
-            name: mediaUrl.split('/').pop(),
-            timestamp: msg.createdAt,
-            type: getFileType(mediaUrl),
-            sender: msg.senderId === authUser?._id ? 'You' : (isGroup ? msg.senderName : currentChat.fullName)
-          }))
-        )
-        .filter(doc => doc.type === 'document');
-      setSharedDocs(docs);
-    } else {
-      setSharedLinks([]);
-      setSharedDocs([]);
-    }
-  }, [currentChat, messages, authUser?._id, isGroup]);
+  const filteredMedia = enhancedChatMedia.filter(media => {
+    if (mediaFilter === "all") return true;
+    if (mediaFilter === "images") return media.type === 'image';
+    if (mediaFilter === "videos") return media.type === 'video';
+    if (mediaFilter === "audio") return media.type === 'audio';
+    return true;
+  }).filter(media => 
+    media.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    media.type?.includes(searchTerm.toLowerCase())
+  );
 
   // Initialize group info
   useEffect(() => {
@@ -135,16 +250,6 @@ const RightSidebar = ({ onClose }) => {
       setGroupDescription(currentChat.description || "");
     }
   }, [currentChat, isGroup]);
-
-  const getFileType = (url) => {
-    const extension = url.split('.').pop()?.toLowerCase() || '';
-    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'];
-    const docExtensions = ['pdf', 'doc', 'docx', 'txt', 'zip', 'rar', 'xls', 'xlsx', 'ppt', 'pptx'];
-    
-    if (imageExtensions.includes(extension)) return 'image';
-    if (docExtensions.includes(extension)) return 'document';
-    return 'other';
-  };
 
   const handleAddMember = async (userId) => {
     try {
@@ -201,85 +306,74 @@ const RightSidebar = ({ onClose }) => {
     }
   };
 
-  const handleVoiceCall = () => {
-    setVoiceCallModal(true);
-    toast.success(`Calling ${currentChat.fullName}...`);
-  };
-
-  const handleVideoCall = () => {
-    setVideoCallModal(true);
-    toast.success(`Starting video call with ${currentChat.fullName}...`);
-  };
-
-  const downloadFile = async (url, filename) => {
+  const handleMuteToggle = async () => {
     try {
-      toast.loading('Downloading file...');
-      const response = await fetch(url);
-      const blob = await response.blob();
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(downloadUrl);
-      toast.dismiss();
-      toast.success('File downloaded successfully');
+      if (isMuted) {
+        await unmuteChat(currentChat._id);
+        setIsMuted(false);
+        toast.success("Chat unmuted");
+      } else {
+        await muteChat(currentChat._id);
+        setIsMuted(true);
+        toast.success("Chat muted");
+      }
     } catch (error) {
-      console.error('Download error:', error);
-      toast.dismiss();
-      toast.error('Failed to download file');
+      console.error("Mute toggle error:", error);
+      toast.error("Failed to update mute settings");
     }
   };
 
-  const getSharedLocations = () => {
-    const chatMessages = messages.filter(msg => 
-      msg.receiverId === currentChat._id || msg.senderId === currentChat._id
-    );
-    
-    return chatMessages
-      .filter(msg => msg.location)
-      .map(msg => ({
-        location: msg.location,
-        timestamp: msg.createdAt,
-        sender: msg.senderId === authUser?._id ? 'You' : (isGroup ? msg.senderName : currentChat.fullName)
-      }));
+  const handleClearChat = async () => {
+    if (window.confirm("Are you sure you want to clear this chat? This action cannot be undone.")) {
+      try {
+        await clearChat(currentChat._id);
+        toast.success("Chat cleared successfully");
+      } catch (error) {
+        console.error("Clear chat error:", error);
+        toast.error("Failed to clear chat");
+      }
+    }
+  };
+
+  const handlePlayAudio = (audioUrl) => {
+    if (playingAudio === audioUrl) {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        setPlayingAudio(null);
+      }
+    } else {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      const audio = new Audio(audioUrl);
+      audioRef.current = audio;
+      audio.play();
+      setPlayingAudio(audioUrl);
+      
+      audio.onended = () => {
+        setPlayingAudio(null);
+        audioRef.current = null;
+      };
+    }
   };
 
   const getJoinDate = () => {
     return currentChat.createdAt ? new Date(currentChat.createdAt).toLocaleDateString('en-US', { 
       year: 'numeric', 
-      month: 'long' 
-    }) : "January 2024";
+      month: 'long',
+      day: 'numeric'
+    }) : "Unknown";
   };
 
   const getMediaCount = () => {
+    return enhancedChatMedia.length;
+  };
+
+  const getMessageCount = () => {
     const chatMessages = messages.filter(msg => 
       msg.receiverId === currentChat._id || msg.senderId === currentChat._id
     );
-    return chatMessages.filter(msg => msg.media && msg.media.length > 0).length;
-  };
-
-  const getFileIcon = (filename) => {
-    const extension = filename.split('.').pop()?.toLowerCase();
-    switch (extension) {
-      case 'pdf':
-        return '📄';
-      case 'doc':
-      case 'docx':
-        return '📝';
-      case 'xls':
-      case 'xlsx':
-        return '📊';
-      case 'zip':
-      case 'rar':
-        return '📦';
-      case 'txt':
-        return '📃';
-      default:
-        return '📎';
-    }
+    return chatMessages.length;
   };
 
   const filteredUsers = users?.filter(user => 
@@ -288,637 +382,843 @@ const RightSidebar = ({ onClose }) => {
     user.fullName?.toLowerCase().includes(newMemberSearch.toLowerCase())
   ) || [];
 
-  const sharedLocations = getSharedLocations();
+  const tabItems = [
+    { id: "info", label: "Info", icon: Info },
+    { id: "media", label: "Media", icon: Image, count: getMediaCount() },
+    { id: "links", label: "Links", icon: Link, count: sharedLinks?.length || 0 },
+    { id: "docs", label: "Docs", icon: FileText, count: sharedDocs?.length || 0 },
+    ...(sharedLocations?.length > 0 ? [{ id: "locations", label: "Locations", icon: MapPin, count: sharedLocations.length }] : []),
+    ...(isGroup ? [{ id: "members", label: "Members", icon: Users, count: currentChat.members?.length || 0 }] : [])
+  ];
+
+  const mediaFilters = [
+    { id: "all", label: "All", icon: Image },
+    { id: "images", label: "Images", icon: Camera },
+    { id: "videos", label: "Videos", icon: Video },
+    { id: "audio", label: "Audio", icon: Music },
+  ];
 
   return (
-    <div className="bg-[#1c1c2e] h-full w-full border-l border-gray-700 flex flex-col">
-      {/* Header */}
-      <div className="flex justify-between items-center p-4 border-b border-gray-700 flex-shrink-0">
-        <h2 className="text-lg font-semibold text-white truncate">
-          {isGroup ? currentChat.name : currentChat.fullName || "User Profile"}
-        </h2>
-        <div className="flex items-center gap-2">
-          {!isGroup && !isBlocked && (
-            <>
-              <button 
-                onClick={handleVoiceCall}
-                className="text-gray-400 hover:text-green-400 transition-colors p-1"
-                title="Voice Call"
-              >
-                <Mic size={18} />
-              </button>
-              <button 
-                onClick={handleVideoCall}
-                className="text-gray-400 hover:text-blue-400 transition-colors p-1"
-                title="Video Call"
-              >
-                <Video size={18} />
-              </button>
-            </>
-          )}
-          <button 
-            onClick={onClose} 
-            className="text-gray-400 hover:text-white transition-colors p-1"
+    <div className="bg-gradient-to-br from-purple-900/50 via-slate-900/50 to-slate-900/50 h-full w-full border-l border-white/10 flex flex-col backdrop-blur-3xl relative overflow-hidden">
+      <ParticleBackground />
+      
+      {/* Enhanced Header */}
+      <GlassCard className="rounded-none border-l-0 border-r-0 border-t-0 rounded-b-2xl flex-shrink-0 relative z-10">
+        <div className="flex justify-between items-center p-6">
+          <motion.div 
+            className="flex items-center gap-3 flex-1 min-w-0"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
           >
-            <X size={20} />
-          </button>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex border-b border-gray-700 overflow-x-auto flex-shrink-0">
-        <button
-          className={`flex items-center gap-2 flex-1 py-3 px-4 text-sm font-medium transition-colors min-w-max ${
-            activeTab === "info" 
-              ? "text-violet-400 border-b-2 border-violet-400" 
-              : "text-gray-400 hover:text-white"
-          }`}
-          onClick={() => setActiveTab("info")}
-        >
-          <Info size={16} />
-          <span>Info</span>
-        </button>
-        <button
-          className={`flex items-center gap-2 flex-1 py-3 px-4 text-sm font-medium transition-colors min-w-max ${
-            activeTab === "media" 
-              ? "text-violet-400 border-b-2 border-violet-400" 
-              : "text-gray-400 hover:text-white"
-          }`}
-          onClick={() => setActiveTab("media")}
-        >
-          <Image size={16} />
-          <span>Media</span>
-        </button>
-        <button
-          className={`flex items-center gap-2 flex-1 py-3 px-4 text-sm font-medium transition-colors min-w-max ${
-            activeTab === "links" 
-              ? "text-violet-400 border-b-2 border-violet-400" 
-              : "text-gray-400 hover:text-white"
-          }`}
-          onClick={() => setActiveTab("links")}
-        >
-          <Link size={16} />
-          <span>Links</span>
-        </button>
-        <button
-          className={`flex items-center gap-2 flex-1 py-3 px-4 text-sm font-medium transition-colors min-w-max ${
-            activeTab === "docs" 
-              ? "text-violet-400 border-b-2 border-violet-400" 
-              : "text-gray-400 hover:text-white"
-          }`}
-          onClick={() => setActiveTab("docs")}
-        >
-          <FileText size={16} />
-          <span>Docs</span>
-        </button>
-        {sharedLocations.length > 0 && (
-          <button
-            className={`flex items-center gap-2 flex-1 py-3 px-4 text-sm font-medium transition-colors min-w-max ${
-              activeTab === "locations" 
-                ? "text-violet-400 border-b-2 border-violet-400" 
-                : "text-gray-400 hover:text-white"
-            }`}
-            onClick={() => setActiveTab("locations")}
-          >
-            <MapPin size={16} />
-            <span>Locations</span>
-          </button>
-        )}
-        {isGroup && (
-          <button
-            className={`flex items-center gap-2 flex-1 py-3 px-4 text-sm font-medium transition-colors min-w-max ${
-              activeTab === "members" 
-                ? "text-violet-400 border-b-2 border-violet-400" 
-                : "text-gray-400 hover:text-white"
-            }`}
-            onClick={() => setActiveTab("members")}
-          >
-            <FiUsers size={16} />
-            <span>Members</span>
-          </button>
-        )}
-      </div>
-
-      {/* Content Area */}
-      <div className="flex-1 overflow-y-auto p-4">
-        {/* Info Tab */}
-        {activeTab === "info" && (
-          <div className="space-y-6">
-            {/* Profile Header */}
-            <div className="flex flex-col items-center text-center">
-              <img
+            <motion.div className="relative">
+              <motion.img
                 src={currentChat.profilePic || currentChat.image || assets.avatar_icon}
                 alt="Profile"
-                className="w-24 h-24 rounded-full object-cover border-4 border-violet-500/30 mb-3"
+                className="w-12 h-12 rounded-2xl object-cover border-2 border-white/20"
+                whileHover={{ scale: 1.05 }}
+                transition={{ type: "spring", stiffness: 300 }}
               />
-              <h3 className="text-xl font-semibold text-white mb-1">
-                {isGroup ? currentChat.name : currentChat.fullName}
-              </h3>
-              <p className="text-gray-400 text-sm mb-2">
-                {isGroup ? `Group • ${currentChat.members?.length || 0} members` : `@${currentChat.username || 'user'}`}
-              </p>
               {!isGroup && onlineUsers.includes(currentChat._id) && (
-                <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-500/20 text-green-400 rounded-full text-xs">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  Online
+                <motion.div 
+                  className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-slate-900"
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                />
+              )}
+            </motion.div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-lg font-semibold text-white truncate">
+                {isGroup ? currentChat.name : currentChat.fullName || "User Profile"}
+              </h2>
+              <p className="text-gray-400 text-sm truncate">
+                {isGroup ? (
+                  <span className="flex items-center gap-1">
+                    <Users size={12} />
+                    {currentChat.members?.length || 0} members
+                  </span>
+                ) : (
+                  onlineUsers.includes(currentChat._id) ? (
+                    <span className="text-green-400">Online</span>
+                  ) : (
+                    <span className="text-gray-500">Offline</span>
+                  )
+                )}
+              </p>
+            </div>
+          </motion.div>
+          
+          <div className="flex items-center gap-2">
+            <AnimatedIconButton onClick={handleMuteToggle} title={isMuted ? "Unmute chat" : "Mute chat"}>
+              {isMuted ? <BellOff size={18} /> : <Bell size={18} />}
+            </AnimatedIconButton>
+            <AnimatedIconButton onClick={onClose}>
+              <X size={20} />
+            </AnimatedIconButton>
+          </div>
+        </div>
+      </GlassCard>
+
+      {/* Enhanced Tabs */}
+      <div className="flex border-b border-white/10 overflow-x-auto flex-shrink-0 px-4 relative z-10">
+        {tabItems.map((tab) => {
+          const IconComponent = tab.icon;
+          return (
+            <motion.button
+              key={tab.id}
+              className={`flex items-center gap-2 flex-1 py-4 px-3 text-sm font-medium transition-all duration-300 min-w-max relative ${
+                activeTab === tab.id 
+                  ? "text-white border-b-2 border-purple-400" 
+                  : "text-gray-400 hover:text-white"
+              }`}
+              onClick={() => setActiveTab(tab.id)}
+              whileHover={{ y: -1 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <IconComponent size={16} />
+              <span>{tab.label}</span>
+              {tab.count > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-purple-500 text-white text-xs rounded-full flex items-center justify-center">
+                  {tab.count > 99 ? '99+' : tab.count}
                 </span>
               )}
-            </div>
-
-            {/* Bio */}
-            <div>
-              <h4 className="text-sm font-medium text-gray-300 mb-2">Bio</h4>
-              <p className="text-white text-sm">
-                {currentChat.bio || (isGroup ? "No group description" : "No bio available")}
-              </p>
-            </div>
-
-            {/* Group Info */}
-            {isGroup && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4 text-center">
-                  <div className="bg-white/5 rounded-lg p-3">
-                    <p className="text-2xl font-bold text-white">{currentChat.members?.length || 0}</p>
-                    <p className="text-xs text-gray-400">Members</p>
-                  </div>
-                  <div className="bg-white/5 rounded-lg p-3">
-                    <p className="text-2xl font-bold text-white">{getMediaCount()}</p>
-                    <p className="text-xs text-gray-400">Media</p>
-                  </div>
-                </div>
-
-                {isAdmin && (
-                  <button
-                    onClick={() => setEditGroupInfo(true)}
-                    className="w-full bg-violet-600 hover:bg-violet-700 text-white py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
-                  >
-                    <FiSettings size={16} />
-                    Edit Group Info
-                  </button>
-                )}
-
-                {isMember && !isAdmin && (
-                  <button
-                    onClick={handleLeaveGroup}
-                    className="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
-                  >
-                    <UserX size={16} />
-                    Leave Group
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* User Actions */}
-            {!isGroup && (
-              <div className="space-y-2">
-                {isBlocked ? (
-                  <button
-                    onClick={() => unblockUser(currentChat._id)}
-                    className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg transition-colors"
-                  >
-                    Unblock User
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => blockUser(currentChat._id)}
-                    className="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg transition-colors"
-                  >
-                    Block User
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* Additional Info */}
-            <div className="space-y-3 pt-4 border-t border-gray-700">
-              <div className="flex items-center gap-3 text-sm">
-                <Mail size={16} className="text-gray-400" />
-                <span className="text-gray-300">{currentChat.email || "Not available"}</span>
-              </div>
-              {!isGroup && currentChat.phone && (
-                <div className="flex items-center gap-3 text-sm">
-                  <Phone size={16} className="text-gray-400" />
-                  <span className="text-gray-300">{currentChat.phone}</span>
-                </div>
-              )}
-              <div className="flex items-center gap-3 text-sm">
-                <Calendar size={16} className="text-gray-400" />
-                <span className="text-gray-300">Joined {getJoinDate()}</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Media Tab */}
-        {activeTab === "media" && (
-          <div>
-            <h4 className="text-sm font-medium text-gray-300 mb-3">
-              Shared Media ({chatMedia.length})
-            </h4>
-            {chatMedia.length > 0 ? (
-              <div className="grid grid-cols-3 gap-2">
-                {chatMedia.map((media, index) => (
-                  <img
-                    key={index}
-                    src={media}
-                    alt={`Shared media ${index + 1}`}
-                    className="w-full h-24 object-cover rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
-                    onClick={() => window.open(media, '_blank')}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <Image size={48} className="text-gray-600 mx-auto mb-3" />
-                <p className="text-gray-400 text-sm">No media shared yet</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Links Tab */}
-        {activeTab === "links" && (
-          <div>
-            <h4 className="text-sm font-medium text-gray-300 mb-3">
-              Shared Links ({sharedLinks.length})
-            </h4>
-            {sharedLinks.length > 0 ? (
-              <div className="space-y-3">
-                {sharedLinks.map((linkObj, index) => (
-                  <div 
-                    key={index} 
-                    className="p-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors"
-                  >
-                    <a 
-                      href={linkObj.link} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-violet-400 hover:text-violet-300 text-sm break-all block mb-1"
-                    >
-                      {linkObj.link.length > 50 ? linkObj.link.substring(0, 50) + '...' : linkObj.link}
-                    </a>
-                    <div className="flex justify-between items-center text-xs text-gray-500">
-                      <span>Shared by {linkObj.sender}</span>
-                      <span>{new Date(linkObj.timestamp).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <Link size={48} className="text-gray-600 mx-auto mb-3" />
-                <p className="text-gray-400 text-sm">No links shared yet</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Documents Tab */}
-        {activeTab === "docs" && (
-          <div>
-            <h4 className="text-sm font-medium text-gray-300 mb-3">
-              Shared Documents ({sharedDocs.length})
-            </h4>
-            {sharedDocs.length > 0 ? (
-              <div className="space-y-3">
-                {sharedDocs.map((doc, index) => (
-                  <div 
-                    key={index} 
-                    className="flex items-center justify-between p-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors"
-                  >
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className="w-12 h-12 bg-violet-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <span className="text-lg">{getFileIcon(doc.name)}</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white text-sm font-medium truncate">
-                          {doc.name}
-                        </p>
-                        <div className="flex justify-between items-center text-xs text-gray-400">
-                          <span>Shared by {doc.sender}</span>
-                          <span>{new Date(doc.timestamp).toLocaleDateString()}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <button 
-                      onClick={() => downloadFile(doc.url, doc.name)}
-                      className="text-gray-400 hover:text-white transition-colors p-2 ml-2"
-                      title="Download"
-                    >
-                      <Download size={16} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <FileText size={48} className="text-gray-600 mx-auto mb-3" />
-                <p className="text-gray-400 text-sm">No documents shared yet</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Locations Tab */}
-        {activeTab === "locations" && (
-          <div>
-            <h4 className="text-sm font-medium text-gray-300 mb-3">
-              Shared Locations ({sharedLocations.length})
-            </h4>
-            <div className="space-y-3">
-              {sharedLocations.map((locationObj, index) => (
-                <div 
-                  key={index} 
-                  className="p-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors"
-                >
-                  <div className="flex items-center gap-3 mb-2">
-                    <MapPin size={16} className="text-red-400" />
-                    <p className="text-white text-sm font-medium">
-                      Shared Location
-                    </p>
-                  </div>
-                  <div className="flex justify-between items-center text-xs text-gray-400 mb-2">
-                    <span>Shared by {locationObj.sender}</span>
-                    <span>{new Date(locationObj.timestamp).toLocaleString()}</span>
-                  </div>
-                  <a 
-                    href={`https://maps.google.com/?q=${locationObj.location.lat},${locationObj.location.lng}`}
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-violet-400 hover:text-violet-300 text-sm inline-flex items-center gap-1"
-                  >
-                    <MapPin size={14} />
-                    View on Google Maps
-                  </a>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Members Tab */}
-        {activeTab === "members" && isGroup && (
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h4 className="text-sm font-medium text-gray-300">
-                Members ({currentChat.members?.length || 0})
-              </h4>
-              {isAdmin && (
-                <button
-                  onClick={() => setShowAddMember(true)}
-                  className="flex items-center gap-1 text-violet-400 hover:text-violet-300 text-sm transition-colors"
-                >
-                  <UserPlus size={16} />
-                  Add
-                </button>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              {currentChat.members?.map(member => (
-                <div 
-                  key={member._id} 
-                  className="flex items-center justify-between p-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors"
-                >
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <img 
-                      src={member.profilePic || assets.avatar_icon} 
-                      alt={member.fullName} 
-                      className="w-10 h-10 rounded-full object-cover flex-shrink-0" 
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white text-sm font-medium truncate">
-                        {member.fullName}
-                        {member._id === currentChat.admin && (
-                          <span className="ml-2 text-yellow-400 text-xs" title="Group Admin">👑 Admin</span>
-                        )}
-                      </p>
-                      <p className="text-gray-400 text-xs truncate">
-                        {onlineUsers.includes(member._id) ? (
-                          <span className="text-green-400">Online</span>
-                        ) : (
-                          'Offline'
-                        )}
-                      </p>
-                    </div>
-                  </div>
-
-                  {isAdmin && member._id !== authUser?._id && (
-                    <button 
-                      onClick={() => setShowRemoveMember(member._id)}
-                      className="text-red-400 hover:text-red-300 transition-colors p-1"
-                      title="Remove member"
-                    >
-                      <UserX size={16} />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+            </motion.button>
+          );
+        })}
       </div>
 
-      {/* Add Member Modal */}
-      {showAddMember && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1c1c2e] rounded-lg max-w-md w-full border border-gray-600 max-h-[80vh] flex flex-col">
-            <div className="p-4 border-b border-gray-700">
-              <h3 className="text-lg font-semibold text-white">Add Member to Group</h3>
-            </div>
-            
-            <div className="p-4">
-              <input
-                type="text"
-                placeholder="Search users..."
-                value={newMemberSearch}
-                onChange={(e) => setNewMemberSearch(e.target.value)}
-                className="w-full p-3 bg-[#282142] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-violet-500 mb-4"
-              />
-              
-              <div className="max-h-60 overflow-y-auto space-y-2">
-                {filteredUsers.map(user => (
-                  <div 
-                    key={user._id} 
-                    onClick={() => handleAddMember(user._id)}
-                    className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-[#333366] transition-colors"
-                  >
-                    <img 
-                      src={user.profilePic || assets.avatar_icon} 
-                      alt={user.fullName} 
-                      className="w-10 h-10 rounded-full object-cover" 
+      {/* Enhanced Content Area */}
+      <div className="flex-1 overflow-y-auto p-4 relative z-10">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.3 }}
+            className="h-full"
+          >
+            {/* Info Tab */}
+            {activeTab === "info" && (
+              <div className="space-y-6">
+                {/* Enhanced Profile Header */}
+                <GlassCard className="p-6 text-center">
+                  <motion.div className="relative inline-block">
+                    <motion.img
+                      src={currentChat.profilePic || currentChat.image || assets.avatar_icon}
+                      alt="Profile"
+                      className="w-24 h-24 rounded-3xl object-cover border-4 border-purple-500/30 mx-auto mb-4"
+                      whileHover={{ scale: 1.05 }}
+                      transition={{ type: "spring", stiffness: 300 }}
                     />
-                    <div className="flex-1">
-                      <p className="text-white text-sm font-medium">{user.fullName}</p>
-                      <p className="text-gray-400 text-xs">{user.email}</p>
-                    </div>
-                    {onlineUsers.includes(user._id) && (
-                      <div className="w-2 h-2 bg-green-500 rounded-full" title="Online"></div>
+                    {!isGroup && onlineUsers.includes(currentChat._id) && (
+                      <motion.div 
+                        className="absolute bottom-2 right-2 w-6 h-6 bg-green-500 rounded-full border-4 border-slate-900"
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                      />
                     )}
-                  </div>
-                ))}
-                
-                {filteredUsers.length === 0 && (
-                  <p className="text-gray-400 text-sm text-center py-4">
-                    {newMemberSearch ? "No users found" : "No users available to add"}
+                  </motion.div>
+                  <h3 className="text-xl font-semibold text-white mb-2">
+                    {isGroup ? currentChat.name : currentChat.fullName}
+                  </h3>
+                  <p className="text-gray-400 text-sm mb-3">
+                    {isGroup ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <Users size={14} />
+                        {currentChat.members?.length || 0} members • {currentChat.members?.filter(m => onlineUsers.includes(m._id)).length || 0} online
+                      </span>
+                    ) : (
+                      `@${currentChat.username || 'user'}`
+                    )}
                   </p>
+                  {!isGroup && onlineUsers.includes(currentChat._id) && (
+                    <motion.span 
+                      className="inline-flex items-center gap-1 px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-xs border border-green-500/30"
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                    >
+                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                      Online
+                    </motion.span>
+                  )}
+                </GlassCard>
+
+                {/* Stats */}
+                <div className="grid grid-cols-2 gap-4">
+                  <StatCard 
+                    value={getMessageCount()} 
+                    label="Messages" 
+                    icon={MessageCircle} 
+                    color="blue"
+                  />
+                  <StatCard 
+                    value={getMediaCount()} 
+                    label="Media" 
+                    icon={Image} 
+                    color="purple"
+                  />
+                </div>
+
+                {/* Bio */}
+                <GlassCard className="p-4">
+                  <h4 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
+                    <Info size={16} />
+                    {isGroup ? "Group Description" : "Bio"}
+                  </h4>
+                  <p className="text-white text-sm leading-relaxed">
+                    {currentChat.bio || currentChat.description || (isGroup ? "No group description" : "No bio available")}
+                  </p>
+                </GlassCard>
+
+                {/* Group Management */}
+                {isGroup && (
+                  <GlassCard className="p-4">
+                    <div className="space-y-3">
+                      {isAdmin && (
+                        <motion.button
+                          onClick={() => setEditGroupInfo(true)}
+                          className="w-full bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600 text-white py-3 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 font-medium"
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                        >
+                          <Edit3 size={16} />
+                          Edit Group Info
+                        </motion.button>
+                      )}
+
+                      {isMember && (
+                        <motion.button
+                          onClick={handleLeaveGroup}
+                          className="w-full bg-gradient-to-r from-red-600 to-pink-500 hover:from-red-700 hover:to-pink-600 text-white py-3 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 font-medium"
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                        >
+                          <UserX size={16} />
+                          Leave Group
+                        </motion.button>
+                      )}
+                    </div>
+                  </GlassCard>
+                )}
+
+                {/* User Actions */}
+                {!isGroup && (
+                  <GlassCard className="p-4">
+                    <div className="space-y-3">
+                      {isBlocked ? (
+                        <motion.button
+                          onClick={() => unblockUser(currentChat._id)}
+                          className="w-full bg-gradient-to-r from-green-600 to-emerald-500 hover:from-green-700 hover:to-emerald-600 text-white py-3 rounded-xl transition-all duration-300 font-medium flex items-center justify-center gap-2"
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                        >
+                          <CheckCircle size={16} />
+                          Unblock User
+                        </motion.button>
+                      ) : (
+                        <motion.button
+                          onClick={() => blockUser(currentChat._id)}
+                          className="w-full bg-gradient-to-r from-red-600 to-pink-500 hover:from-red-700 hover:to-pink-600 text-white py-3 rounded-xl transition-all duration-300 font-medium flex items-center justify-center gap-2"
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                        >
+                          <AlertTriangle size={16} />
+                          Block User
+                        </motion.button>
+                      )}
+                    </div>
+                  </GlassCard>
+                )}
+
+                {/* Additional Info */}
+                <GlassCard className="p-4">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3 text-sm">
+                      <Mail size={16} className="text-gray-400" />
+                      <span className="text-gray-300">{currentChat.email || "Not available"}</span>
+                    </div>
+                    {!isGroup && currentChat.phone && (
+                      <div className="flex items-center gap-3 text-sm">
+                        <Phone size={16} className="text-gray-400" />
+                        <span className="text-gray-300">{currentChat.phone}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-3 text-sm">
+                      <Calendar size={16} className="text-gray-400" />
+                      <span className="text-gray-300">Joined {getJoinDate()}</span>
+                    </div>
+                  </div>
+                </GlassCard>
+
+                {/* Danger Zone */}
+                <GlassCard className="p-4 border border-red-500/20">
+                  <h4 className="text-sm font-medium text-red-400 mb-3 flex items-center gap-2">
+                    <AlertTriangle size={16} />
+                    Danger Zone
+                  </h4>
+                  <motion.button
+                    onClick={handleClearChat}
+                    className="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 py-3 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 font-medium border border-red-500/20"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <Trash2 size={16} />
+                    Clear Chat History
+                  </motion.button>
+                </GlassCard>
+              </div>
+            )}
+
+            {/* Media Tab */}
+            {activeTab === "media" && (
+              <div className="space-y-4">
+                {/* Media Filters */}
+                <div className="flex gap-2 overflow-x-auto pb-2">
+                  {mediaFilters.map(filter => (
+                    <motion.button
+                      key={filter.id}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-300 whitespace-nowrap ${
+                        mediaFilter === filter.id
+                          ? "bg-purple-500 text-white"
+                          : "bg-white/5 text-gray-400 hover:text-white"
+                      }`}
+                      onClick={() => setMediaFilter(filter.id)}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      <filter.icon size={14} />
+                      {filter.label}
+                    </motion.button>
+                  ))}
+                </div>
+
+                {/* Search */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                  <input
+                    type="text"
+                    placeholder="Search media..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-sm placeholder-gray-400 focus:outline-none focus:border-purple-500/50"
+                  />
+                </div>
+
+                {/* Media Grid */}
+                {filteredMedia.length > 0 ? (
+                  <MediaGrid 
+                    media={filteredMedia} 
+                    onMediaClick={setSelectedMedia}
+                  />
+                ) : (
+                  <GlassCard className="text-center py-12">
+                    <Image size={48} className="text-gray-600 mx-auto mb-3" />
+                    <p className="text-gray-400 text-sm">No media found</p>
+                    <p className="text-gray-500 text-xs mt-1">Try changing your search or filter</p>
+                  </GlassCard>
                 )}
               </div>
-            </div>
-            
-            <div className="p-4 border-t border-gray-700 flex gap-3">
-              <button 
-                onClick={() => {
-                  setShowAddMember(false);
-                  setNewMemberSearch("");
-                }} 
-                className="flex-1 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            )}
 
-      {/* Remove Member Modal */}
-      {showRemoveMember && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1c1c2e] rounded-lg max-w-sm w-full border border-gray-600">
-            <div className="p-4 border-b border-gray-700">
-              <h3 className="text-lg font-semibold text-white">Remove Member</h3>
-            </div>
-            
-            <div className="p-4">
-              <p className="text-gray-300 text-sm mb-4">
-                Are you sure you want to remove this member from the group?
-              </p>
-            </div>
-            
-            <div className="p-4 border-t border-gray-700 flex gap-3">
-              <button 
-                onClick={() => setShowRemoveMember(null)} 
-                className="flex-1 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={() => handleRemoveMember(showRemoveMember)} 
-                className="flex-1 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
-              >
-                Remove
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            {/* Links Tab */}
+            {activeTab === "links" && (
+              <div className="space-y-4">
+                <h4 className="text-sm font-medium text-gray-300">
+                  Shared Links ({sharedLinks?.length || 0})
+                </h4>
+                {sharedLinks?.length > 0 ? (
+                  <div className="space-y-3">
+                    {sharedLinks.map((linkObj, index) => (
+                      <GlassCard 
+                        key={index} 
+                        className="p-4 hover:bg-white/10 transition-all duration-300 cursor-pointer group"
+                        whileHover={{ y: -2 }}
+                        onClick={() => window.open(linkObj.link, '_blank')}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 bg-purple-500/20 rounded-xl flex items-center justify-center flex-shrink-0 border border-purple-500/30">
+                            <Link size={16} className="text-purple-400" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <a 
+                              href={linkObj.link} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-purple-400 hover:text-purple-300 text-sm break-all block mb-2 font-medium group-hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {linkObj.link}
+                            </a>
+                            <div className="flex justify-between items-center text-xs text-gray-500">
+                              <span>Shared by {linkObj.sender}</span>
+                              <span>{new Date(linkObj.timestamp).toLocaleDateString()}</span>
+                            </div>
+                          </div>
+                          <ExternalLink size={16} className="text-gray-400 group-hover:text-purple-400 transition-colors" />
+                        </div>
+                      </GlassCard>
+                    ))}
+                  </div>
+                ) : (
+                  <GlassCard className="text-center py-12">
+                    <Link size={48} className="text-gray-600 mx-auto mb-3" />
+                    <p className="text-gray-400 text-sm">No links shared yet</p>
+                  </GlassCard>
+                )}
+              </div>
+            )}
 
-      {/* Edit Group Info Modal */}
-      {editGroupInfo && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1c1c2e] rounded-lg max-w-md w-full border border-gray-600">
-            <div className="p-4 border-b border-gray-700">
-              <h3 className="text-lg font-semibold text-white">Edit Group Info</h3>
-            </div>
-            
-            <div className="p-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Group Name *
-                </label>
-                <input
-                  type="text"
-                  value={groupName}
-                  onChange={(e) => setGroupName(e.target.value)}
-                  className="w-full p-3 bg-[#282142] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-violet-500"
-                  placeholder="Enter group name"
+            {/* Documents Tab */}
+            {activeTab === "docs" && (
+              <div className="space-y-4">
+                <h4 className="text-sm font-medium text-gray-300">
+                  Shared Documents ({sharedDocs?.length || 0})
+                </h4>
+                {sharedDocs?.length > 0 ? (
+                  <div className="space-y-3">
+                    {sharedDocs.map((doc, index) => (
+                      <GlassCard 
+                        key={index} 
+                        className="flex items-center justify-between p-4 hover:bg-white/10 transition-all duration-300 group"
+                        whileHover={{ y: -2 }}
+                      >
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center flex-shrink-0 border border-purple-500/30">
+                            <span className="text-lg">{getFileIcon(doc.name)}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-white text-sm font-medium truncate">
+                              {doc.name}
+                            </p>
+                            <div className="flex justify-between items-center text-xs text-gray-400">
+                              <span>Shared by {doc.sender}</span>
+                              <span>{new Date(doc.timestamp).toLocaleDateString()}</span>
+                            </div>
+                            <p className="text-gray-500 text-xs mt-1 capitalize">{doc.type}</p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          {doc.type === 'audio' && (
+                            <AnimatedIconButton 
+                              onClick={() => handlePlayAudio(doc.url)}
+                              title={playingAudio === doc.url ? "Pause" : "Play"}
+                            >
+                              {playingAudio === doc.url ? <Pause size={16} /> : <Play size={16} />}
+                            </AnimatedIconButton>
+                          )}
+                          <AnimatedIconButton 
+                            onClick={() => downloadFile(doc.url, doc.name)}
+                            title="Download"
+                          >
+                            <Download size={16} />
+                          </AnimatedIconButton>
+                        </div>
+                      </GlassCard>
+                    ))}
+                  </div>
+                ) : (
+                  <GlassCard className="text-center py-12">
+                    <FileText size={48} className="text-gray-600 mx-auto mb-3" />
+                    <p className="text-gray-400 text-sm">No documents shared yet</p>
+                  </GlassCard>
+                )}
+              </div>
+            )}
+
+            {/* Locations Tab */}
+            {activeTab === "locations" && (
+              <div className="space-y-4">
+                <h4 className="text-sm font-medium text-gray-300">
+                  Shared Locations ({sharedLocations?.length || 0})
+                </h4>
+                <div className="space-y-3">
+                  {sharedLocations?.map((locationObj, index) => (
+                    <GlassCard 
+                      key={index} 
+                      className="p-4 hover:bg-white/10 transition-all duration-300 group"
+                      whileHover={{ y: -2 }}
+                    >
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-10 h-10 bg-red-500/20 rounded-xl flex items-center justify-center flex-shrink-0 border border-red-500/30">
+                          <MapPin size={16} className="text-red-400" />
+                        </div>
+                        <div>
+                          <p className="text-white text-sm font-medium">
+                            Shared Location
+                          </p>
+                          <p className="text-gray-400 text-xs">
+                            {locationObj.location.address || `Lat: ${locationObj.location.lat}, Lng: ${locationObj.location.lng}`}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center text-xs text-gray-400 mb-3">
+                        <span>Shared by {locationObj.sender}</span>
+                        <span>{new Date(locationObj.timestamp).toLocaleString()}</span>
+                      </div>
+                      <a 
+                        href={`https://maps.google.com/?q=${locationObj.location.lat},${locationObj.location.lng}`}
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-purple-400 hover:text-purple-300 text-sm inline-flex items-center gap-2 font-medium group-hover:underline"
+                      >
+                        <MapPin size={14} />
+                        View on Google Maps
+                        <ExternalLink size={12} />
+                      </a>
+                    </GlassCard>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Members Tab */}
+            {activeTab === "members" && isGroup && (
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <h4 className="text-sm font-medium text-gray-300">
+                    Members ({currentChat.members?.length || 0})
+                  </h4>
+                  {isAdmin && (
+                    <AnimatedIconButton
+                      onClick={() => setShowAddMember(true)}
+                      className="flex items-center gap-2 text-purple-400 hover:text-purple-300 text-sm"
+                    >
+                      <UserPlus size={16} />
+                      Add Member
+                    </AnimatedIconButton>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  {currentChat.members?.map(member => (
+                    <GlassCard 
+                      key={member._id} 
+                      className="flex items-center justify-between p-3 hover:bg-white/10 transition-all duration-300 group"
+                      whileHover={{ y: -2 }}
+                    >
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="relative">
+                          <img 
+                            src={member.profilePic || assets.avatar_icon} 
+                            alt={member.fullName} 
+                            className="w-10 h-10 rounded-xl object-cover flex-shrink-0 border border-white/10" 
+                          />
+                          {onlineUsers.includes(member._id) && (
+                            <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-slate-900" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-white text-sm font-medium truncate">
+                              {member.fullName}
+                            </p>
+                            {member._id === currentChat.admin && (
+                              <Crown size={14} className="text-yellow-400 flex-shrink-0" title="Group Admin" />
+                            )}
+                          </div>
+                          <p className="text-gray-400 text-xs truncate">
+                            {onlineUsers.includes(member._id) ? (
+                              <span className="text-green-400">Online</span>
+                            ) : (
+                              <span className="text-gray-500">Offline</span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+
+                      {isAdmin && member._id !== authUser?._id && (
+                        <AnimatedIconButton 
+                          onClick={() => setShowRemoveMember(member._id)}
+                          title="Remove member"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                        >
+                          <UserX size={16} />
+                        </AnimatedIconButton>
+                      )}
+                    </GlassCard>
+                  ))}
+                </div>
+              </div>
+            )}
+          </motion.div>
+        </AnimatePresence>
+      </div>
+
+      {/* Enhanced Modals */}
+      <AnimatePresence>
+        {/* Media Preview Modal */}
+        {selectedMedia && (
+          <motion.div 
+            className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setSelectedMedia(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="relative max-w-4xl max-h-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {selectedMedia.type === 'image' ? (
+                <img
+                  src={selectedMedia.url}
+                  alt="Preview"
+                  className="max-w-full max-h-full rounded-2xl object-contain"
                 />
+              ) : selectedMedia.type === 'video' ? (
+                <video
+                  src={selectedMedia.url}
+                  controls
+                  className="max-w-full max-h-full rounded-2xl"
+                  autoPlay
+                />
+              ) : (
+                <div className="bg-slate-800 rounded-2xl p-8 text-center">
+                  <FileText size={64} className="text-gray-400 mx-auto mb-4" />
+                  <p className="text-white text-lg mb-2">{selectedMedia.name}</p>
+                  <p className="text-gray-400">This file type cannot be previewed</p>
+                </div>
+              )}
+              
+              <AnimatedIconButton
+                onClick={() => setSelectedMedia(null)}
+                className="absolute -top-4 -right-4 bg-red-500 hover:bg-red-600 text-white"
+              >
+                <X size={20} />
+              </AnimatedIconButton>
+              
+              <AnimatedIconButton
+                onClick={() => downloadFile(selectedMedia.url, selectedMedia.name)}
+                className="absolute -top-4 -right-16 bg-purple-500 hover:bg-purple-600 text-white"
+                title="Download"
+              >
+                <Download size={20} />
+              </AnimatedIconButton>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* Add Member Modal */}
+        {showAddMember && (
+          <motion.div 
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl max-w-md w-full border border-white/10 backdrop-blur-3xl max-h-[80vh] flex flex-col shadow-2xl"
+            >
+              <GlassCard className="rounded-t-2xl rounded-b-none border-b border-white/10">
+                <div className="p-6">
+                  <h3 className="text-lg font-semibold text-white">Add Member to Group</h3>
+                  <p className="text-gray-400 text-sm mt-1">Select users to add to the group</p>
+                </div>
+              </GlassCard>
+              
+              <div className="p-6 flex-1 overflow-hidden">
+                <div className="relative mb-4">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                  <input
+                    type="text"
+                    placeholder="Search users..."
+                    value={newMemberSearch}
+                    onChange={(e) => setNewMemberSearch(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-purple-500/50"
+                  />
+                </div>
+                
+                <div className="max-h-60 overflow-y-auto space-y-2">
+                  {filteredUsers.map(user => (
+                    <motion.div 
+                      key={user._id} 
+                      onClick={() => handleAddMember(user._id)}
+                      className="flex items-center gap-3 p-3 rounded-xl cursor-pointer hover:bg-white/10 transition-all duration-300 group"
+                      whileHover={{ x: 4 }}
+                    >
+                      <div className="relative">
+                        <img 
+                          src={user.profilePic || assets.avatar_icon} 
+                          alt={user.fullName} 
+                          className="w-10 h-10 rounded-xl object-cover border border-white/10" 
+                        />
+                        {onlineUsers.includes(user._id) && (
+                          <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-slate-900" />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-white text-sm font-medium">{user.fullName}</p>
+                        <p className="text-gray-400 text-xs">{user.email}</p>
+                      </div>
+                      <UserPlus size={16} className="text-gray-400 group-hover:text-purple-400 transition-colors" />
+                    </motion.div>
+                  ))}
+                  
+                  {filteredUsers.length === 0 && (
+                    <div className="text-center py-8">
+                      <UserX size={48} className="text-gray-600 mx-auto mb-3" />
+                      <p className="text-gray-400 text-sm">
+                        {newMemberSearch ? "No users found" : "No users available to add"}
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
               
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Description
-                </label>
-                <textarea
-                  value={groupDescription}
-                  onChange={(e) => setGroupDescription(e.target.value)}
-                  className="w-full p-3 bg-[#282142] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-violet-500 resize-none"
-                  placeholder="Enter group description"
-                  rows={3}
-                />
-              </div>
-            </div>
-            
-            <div className="p-4 border-t border-gray-700 flex gap-3">
-              <button 
-                onClick={() => setEditGroupInfo(false)} 
-                className="flex-1 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={handleUpdateGroupInfo} 
-                className="flex-1 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg transition-colors"
-              >
-                Save Changes
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+              <GlassCard className="rounded-b-2xl rounded-t-none border-t border-white/10">
+                <div className="p-6 flex gap-3">
+                  <motion.button 
+                    onClick={() => {
+                      setShowAddMember(false);
+                      setNewMemberSearch("");
+                    }} 
+                    className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-all duration-300 font-medium border border-white/10"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    Cancel
+                  </motion.button>
+                </div>
+              </GlassCard>
+            </motion.div>
+          </motion.div>
+        )}
 
-      {/* Voice Call Modal */}
-      {voiceCallModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1c1c2e] rounded-lg max-w-sm w-full border border-gray-600">
-            <div className="p-4 border-b border-gray-700">
-              <h3 className="text-lg font-semibold text-white">Voice Call</h3>
-            </div>
-            <div className="p-6 text-center">
-              <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Mic size={32} className="text-green-400" />
+        {/* Remove Member Modal */}
+        {showRemoveMember && (
+          <motion.div 
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl max-w-sm w-full border border-white/10 backdrop-blur-3xl shadow-2xl"
+            >
+              <GlassCard className="rounded-t-2xl rounded-b-none border-b border-white/10">
+                <div className="p-6">
+                  <h3 className="text-lg font-semibold text-white">Remove Member</h3>
+                </div>
+              </GlassCard>
+              
+              <div className="p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <AlertTriangle size={24} className="text-yellow-400" />
+                  <p className="text-gray-300 text-sm">
+                    Are you sure you want to remove this member from the group?
+                  </p>
+                </div>
               </div>
-              <p className="text-gray-300 mb-2">Calling {currentChat.fullName}</p>
-              <p className="text-gray-400 text-sm">Connecting...</p>
-            </div>
-            <div className="p-4 border-t border-gray-700 flex gap-3">
-              <button 
-                onClick={() => setVoiceCallModal(false)} 
-                className="flex-1 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
-              >
-                End Call
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+              
+              <GlassCard className="rounded-b-2xl rounded-t-none border-t border-white/10">
+                <div className="p-6 flex gap-3">
+                  <motion.button 
+                    onClick={() => setShowRemoveMember(null)} 
+                    className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-all duration-300 font-medium border border-white/10"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    Cancel
+                  </motion.button>
+                  <motion.button 
+                    onClick={() => handleRemoveMember(showRemoveMember)} 
+                    className="flex-1 py-3 bg-gradient-to-r from-red-600 to-pink-500 hover:from-red-700 hover:to-pink-600 text-white rounded-xl transition-all duration-300 font-medium"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    Remove
+                  </motion.button>
+                </div>
+              </GlassCard>
+            </motion.div>
+          </motion.div>
+        )}
 
-      {/* Video Call Modal */}
-      {videoCallModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1c1c2e] rounded-lg max-w-md w-full border border-gray-600">
-            <div className="p-4 border-b border-gray-700">
-              <h3 className="text-lg font-semibold text-white">Video Call</h3>
-            </div>
-            <div className="p-6 text-center">
-              <div className="w-32 h-32 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Video size={48} className="text-blue-400" />
+        {/* Edit Group Info Modal */}
+        {editGroupInfo && (
+          <motion.div 
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl max-w-md w-full border border-white/10 backdrop-blur-3xl shadow-2xl"
+            >
+              <GlassCard className="rounded-t-2xl rounded-b-none border-b border-white/10">
+                <div className="p-6">
+                  <h3 className="text-lg font-semibold text-white">Edit Group Info</h3>
+                  <p className="text-gray-400 text-sm mt-1">Update your group information</p>
+                </div>
+              </GlassCard>
+              
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Group Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={groupName}
+                    onChange={(e) => setGroupName(e.target.value)}
+                    className="w-full p-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-purple-500/50"
+                    placeholder="Enter group name"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Description
+                  </label>
+                  <textarea
+                    value={groupDescription}
+                    onChange={(e) => setGroupDescription(e.target.value)}
+                    className="w-full p-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-purple-500/50 resize-none"
+                    placeholder="Enter group description"
+                    rows={4}
+                  />
+                </div>
               </div>
-              <p className="text-gray-300 mb-2">Video calling {currentChat.fullName}</p>
-              <p className="text-gray-400 text-sm">Waiting for response...</p>
-            </div>
-            <div className="p-4 border-t border-gray-700 flex gap-3">
-              <button 
-                onClick={() => setVideoCallModal(false)} 
-                className="flex-1 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
-              >
-                End Call
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+              
+              <GlassCard className="rounded-b-2xl rounded-t-none border-t border-white/10">
+                <div className="p-6 flex gap-3">
+                  <motion.button 
+                    onClick={() => setEditGroupInfo(false)} 
+                    className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-all duration-300 font-medium border border-white/10"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    Cancel
+                  </motion.button>
+                  <motion.button 
+                    onClick={handleUpdateGroupInfo} 
+                    className="flex-1 py-3 bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600 text-white rounded-xl transition-all duration-300 font-medium"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    Save Changes
+                  </motion.button>
+                </div>
+              </GlassCard>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Hidden audio element for audio playback */}
+      <audio ref={audioRef} className="hidden" />
     </div>
   );
 };

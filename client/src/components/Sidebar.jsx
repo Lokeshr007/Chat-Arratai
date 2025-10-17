@@ -1,5 +1,4 @@
-import React, { useEffect, useState, useContext, useRef } from "react";
-import assets from "../assets/assets";
+import React, { useEffect, useState, useContext, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../../context/AuthContext";
 import { ChatContext } from "../../context/ChatContext";
@@ -62,8 +61,8 @@ const Sidebar = ({ isMobile, onUserSelect, selectedUser, setIsProfileOpen, colla
     acceptFriendRequest,
     rejectFriendRequest,
     removeFriend,
-    canSendMessageToUser: contextCanSendMessage,
-    canSendFriendRequest: contextCanSendRequest
+    canSendMessageToUser,
+    canSendFriendRequest
   } = useContext(ChatContext);
   
   const navigate = useNavigate();
@@ -79,8 +78,6 @@ const Sidebar = ({ isMobile, onUserSelect, selectedUser, setIsProfileOpen, colla
   const [loading, setLoading] = useState(true);
   
   const [showProfile, setShowProfile] = useState(false);
-  const [profileActiveTab, setProfileActiveTab] = useState("edit");
-  const [selectedImg, setSelectedImg] = useState(null);
   const [name, setName] = useState(authUser?.fullName || '');
   const [bio, setBio] = useState(authUser?.bio || '');
   const [username, setUsername] = useState(authUser?.username || '');
@@ -97,27 +94,32 @@ const Sidebar = ({ isMobile, onUserSelect, selectedUser, setIsProfileOpen, colla
     return friends.some(friend => friend._id === userId);
   };
 
-  // Use context functions if available, otherwise use fallbacks
-  const canSendMessageToUser = (user) => {
-    if (contextCanSendMessage) {
-      return contextCanSendMessage(user);
-    }
-    
-    // Fallback logic
-    if (!user) return false;
-    const isFriend = isUserFriend(user._id);
-    if (!isFriend) return false;
-    return user.privacySettings?.allowDirectMessages !== false;
+  // Check if friend request already sent to a user
+  const hasSentFriendRequest = (userId) => {
+    if (!Array.isArray(sentRequests) || !userId) return false;
+    return sentRequests.some(request => {
+      const toUserId = request.to?._id || request.to;
+      return toUserId === userId && request.status === 'pending';
+    });
   };
 
-  const canSendFriendRequest = (user) => {
-    if (contextCanSendRequest) {
-      return contextCanSendRequest(user);
-    }
-    
-    // Fallback logic
-    if (!user) return true;
-    return user.privacySettings?.allowFriendRequests !== false;
+  // Check if received friend request from a user
+  const hasReceivedFriendRequest = (userId) => {
+    if (!Array.isArray(friendRequests) || !userId) return false;
+    return friendRequests.some(request => {
+      const fromUserId = request.from?._id || request.from;
+      return fromUserId === userId && request.status === 'pending';
+    });
+  };
+
+  // Get the actual request ID for a received friend request
+  const getFriendRequestId = (userId) => {
+    if (!Array.isArray(friendRequests) || !userId) return null;
+    const request = friendRequests.find(req => {
+      const fromUserId = req.from?._id || req.from;
+      return fromUserId === userId && req.status === 'pending';
+    });
+    return request?._id || null;
   };
 
   // Enhanced data loading with proper error handling
@@ -131,7 +133,7 @@ const Sidebar = ({ isMobile, onUserSelect, selectedUser, setIsProfileOpen, colla
           // Load users first
           await getUsers();
           
-          // Try to load friends - use getFriendsForSidebar if available, otherwise fallback
+          // Try to load friends
           try {
             if (getFriendsForSidebar) {
               await getFriendsForSidebar();
@@ -140,7 +142,6 @@ const Sidebar = ({ isMobile, onUserSelect, selectedUser, setIsProfileOpen, colla
             }
           } catch (friendError) {
             console.warn('⚠️ Could not load friends, continuing without friends data:', friendError);
-            // Friends will remain as empty array from default value
           }
           
           // Load groups if needed
@@ -172,7 +173,7 @@ const Sidebar = ({ isMobile, onUserSelect, selectedUser, setIsProfileOpen, colla
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Enhanced search with better error handling
+  // Enhanced search with better user handling
   useEffect(() => {
     if (!searchInput.trim()) {
       setSearchResults([]);
@@ -187,19 +188,30 @@ const Sidebar = ({ isMobile, onUserSelect, selectedUser, setIsProfileOpen, colla
         
         if (activeTab === "chats") {
           try {
-            // Try API search first
-            const emailSearchResults = searchUsersByEmail ? await searchUsersByEmail(searchInput) : [];
-            const nameSearchResults = searchUsers ? await searchUsers(searchInput) : [];
+            // Use enhanced search if available
+            if (searchUsers) {
+              console.log('🔍 Searching users with query:', searchInput);
+              results = await searchUsers(searchInput);
+              console.log('✅ Search results found:', results.length);
+              
+              // Store search results globally for friend request function
+              window.searchResults = results;
+            }
             
-            const combinedResults = [...emailSearchResults, ...nameSearchResults];
-            const uniqueResults = combinedResults.filter((user, index, self) => 
-              index === self.findIndex(u => u._id === user._id)
-            );
-            
-            results = uniqueResults;
+            // Fallback to comprehensive local search
+            if (results.length === 0) {
+              console.log('🔍 Using enhanced local search fallback');
+              results = users.filter(user => 
+                user._id !== authUser?._id && (
+                  user.fullName?.toLowerCase().includes(searchInput.toLowerCase()) ||
+                  user.email?.toLowerCase().includes(searchInput.toLowerCase()) ||
+                  user.username?.toLowerCase().includes(searchInput.toLowerCase())
+                )
+              );
+            }
           } catch (searchError) {
-            console.log("🔍 Using local search fallback");
-            // Fallback to local filtering
+            console.log("🔍 Using local search fallback due to error:", searchError);
+            // Comprehensive local search fallback
             results = users.filter(user => 
               user._id !== authUser?._id && (
                 user.fullName?.toLowerCase().includes(searchInput.toLowerCase()) ||
@@ -209,24 +221,70 @@ const Sidebar = ({ isMobile, onUserSelect, selectedUser, setIsProfileOpen, colla
             );
           }
         } else {
-          results = searchGroups ? await searchGroups(searchInput) : [];
+          // Group search
+          try {
+            results = searchGroups ? await searchGroups(searchInput) : [];
+          } catch (groupError) {
+            console.warn('Group search failed, using local fallback:', groupError);
+            results = groups.filter(group => 
+              group.name?.toLowerCase().includes(searchInput.toLowerCase()) ||
+              group.description?.toLowerCase().includes(searchInput.toLowerCase())
+            );
+          }
         }
+        
         setSearchResults(results);
+        console.log('🔍 Final search results:', results.length);
       } catch (error) {
         console.error("Search error:", error);
-        setSearchResults([]);
+        // Fallback to local search
+        const localResults = users.filter(user => 
+          user._id !== authUser?._id && (
+            user.fullName?.toLowerCase().includes(searchInput.toLowerCase()) ||
+            user.email?.toLowerCase().includes(searchInput.toLowerCase()) ||
+            user.username?.toLowerCase().includes(searchInput.toLowerCase())
+          )
+        );
+        setSearchResults(localResults);
       } finally {
         setIsSearching(false);
       }
     }, 500);
 
     return () => clearTimeout(searchTimeout);
-  }, [searchInput, activeTab, searchUsers, searchUsersByEmail, searchGroups, users, authUser]);
+  }, [searchInput, activeTab, searchUsers, searchUsersByEmail, searchGroups, users, authUser, groups]);
 
   useEffect(() => {
     setSearchInput("");
     setSearchResults([]);
   }, [activeTab]);
+
+  // Enhanced user filtering that includes search results
+  const allAvailableUsers = useMemo(() => {
+    // Combine regular users and search results, removing duplicates
+    const combined = [...users];
+    
+    searchResults.forEach(searchUser => {
+      if (!combined.some(user => user._id === searchUser._id)) {
+        combined.push(searchUser);
+      }
+    });
+    
+    return combined.filter(user => user._id !== authUser?._id);
+  }, [users, searchResults, authUser]);
+
+  // Friends are users who are actually friends
+  const friendsList = allAvailableUsers.filter(user => 
+    isUserFriend(user._id)
+  );
+
+  // Non-friends are everyone else (including search results)
+  const nonFriendsList = allAvailableUsers.filter(user => 
+    !isUserFriend(user._id)
+  );
+
+  const filteredUsers = searchInput ? allAvailableUsers : users.filter(user => user._id !== authUser?._id);
+  const displayGroups = searchInput ? searchResults : groups;
 
   // Profile functions
   const handleProfileSubmit = async (e) => {
@@ -245,20 +303,9 @@ const Sidebar = ({ isMobile, onUserSelect, selectedUser, setIsProfileOpen, colla
         username: username.trim() || undefined
       };
 
-      if (selectedImg) {
-        const base64Image = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.readAsDataURL(selectedImg);
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = reject;
-        });
-        body.profilePic = base64Image;
-      }
-
       const data = await updateProfile(body);
       if (data.success) {
         toast.success("Profile updated successfully!");
-        setSelectedImg(null);
         await getUsers();
       } else {
         toast.error(data.message || "Update failed");
@@ -313,21 +360,6 @@ const Sidebar = ({ isMobile, onUserSelect, selectedUser, setIsProfileOpen, colla
     }
   };
 
-  const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error("Image size should be less than 5MB");
-        return;
-      }
-      if (!file.type.startsWith('image/')) {
-        toast.error("Please select a valid image file");
-        return;
-      }
-      setSelectedImg(file);
-    }
-  };
-
   const getInitials = (name) => {
     return name
       ?.split(' ')
@@ -342,21 +374,6 @@ const Sidebar = ({ isMobile, onUserSelect, selectedUser, setIsProfileOpen, colla
       toast.error("Account deletion feature coming soon");
     }
   };
-
-  // Enhanced user filtering
-  const filteredUsers = searchInput ? 
-    searchResults.filter(user => user._id !== authUser?._id) : 
-    users.filter(user => user._id !== authUser?._id);
-
-  const displayGroups = searchInput ? searchResults : groups;
-
-  const friendsList = filteredUsers.filter(user => 
-    isUserFriend(user._id)
-  );
-  
-  const nonFriendsList = filteredUsers.filter(user => 
-    !isUserFriend(user._id)
-  );
 
   const handleCreateGroup = async (e) => {
     e.preventDefault();
@@ -396,7 +413,13 @@ const Sidebar = ({ isMobile, onUserSelect, selectedUser, setIsProfileOpen, colla
   const selectUser = async (user) => {
     try {
       if (!canSendMessageToUser(user)) {
-        toast.error("Cannot message this user. They may not be your friend or have disabled messaging.");
+        toast("Cannot message this user. You need to be friends first.", {
+          icon: '👥',
+          style: {
+            background: '#8b5cf6',
+            color: 'white',
+          },
+        });
         return;
       }
       
@@ -425,69 +448,128 @@ const Sidebar = ({ isMobile, onUserSelect, selectedUser, setIsProfileOpen, colla
     }
   };
 
+  // Enhanced friend request handling
   const handleSendFriendRequest = async (userId) => {
     try {
-      const user = users.find(u => u._id === userId);
-      if (user && !canSendFriendRequest(user)) {
-        toast.error("This user is not accepting friend requests");
+      console.log('📤 Sidebar: Attempting to send friend request to:', userId);
+      
+      if (!sendFriendRequest) {
+        console.error('❌ sendFriendRequest function not available');
+        toast.error("Friend request feature is not available");
         return;
       }
+
+      // Find user in multiple sources
+      let targetUser = null;
       
-      const success = sendFriendRequest ? await sendFriendRequest(userId) : false;
+      // First check search results (most recent)
+      if (searchResults.length > 0) {
+        targetUser = searchResults.find(u => u._id === userId);
+      }
+      
+      // Then check regular users list
+      if (!targetUser) {
+        targetUser = users.find(u => u._id === userId);
+      }
+      
+      // Finally check friends list
+      if (!targetUser && Array.isArray(friends)) {
+        targetUser = friends.find(friend => friend._id === userId);
+      }
+
+      if (!targetUser) {
+        console.error('❌ User not found in any source:', userId);
+        console.log('🔍 Available users:', users.length);
+        console.log('🔍 Search results:', searchResults.length);
+        console.log('🔍 Friends:', friends.length);
+        toast.error("User not found. Please try searching again.");
+        return;
+      }
+
+      console.log('✅ Found target user:', targetUser.fullName);
+
+      // Check if we can send friend request
+      if (!canSendFriendRequest(targetUser)) {
+        console.log('❌ Cannot send friend request due to privacy settings');
+        toast.error("Cannot send friend request to this user due to their privacy settings");
+        return;
+      }
+
+      // Call the context function
+      const success = await sendFriendRequest(userId);
+      console.log('📡 Sidebar: sendFriendRequest result:', success);
+      
       if (success) {
         toast.success("Friend request sent!");
-        // Refresh friends list
-        if (getFriends) {
-          try {
-            await getFriends();
-          } catch (e) {
-            console.warn('Could not refresh friends list');
-          }
-        }
-      } else {
-        toast.error("Failed to send friend request");
+        // Refresh data to update UI
+        await getFriends();
+        await getUsers();
       }
     } catch (error) {
-      console.error('Failed to send friend request:', error);
-      toast.error(error.response?.data?.message || "Failed to send friend request");
+      console.error('❌ Sidebar: Unexpected error:', error);
+      toast.error(error.response?.data?.message || "An unexpected error occurred");
     }
   };
 
-  const handleAcceptFriendRequest = async (userId) => {
+  // Enhanced friend request acceptance
+  const handleAcceptFriendRequest = async (requestId) => {
     try {
-      const success = acceptFriendRequest ? await acceptFriendRequest(userId) : false;
+      console.log('✅ Accepting friend request:', requestId);
+      
+      if (!acceptFriendRequest) {
+        toast.error("Friend request acceptance not available");
+        return;
+      }
+
+      if (!requestId) {
+        toast.error("Invalid friend request");
+        return;
+      }
+
+      const success = await acceptFriendRequest(requestId);
       if (success) {
         toast.success("Friend request accepted!");
         setShowFriendRequests(false);
-        // Refresh friends list
-        if (getFriends) {
-          try {
-            await getFriends();
-          } catch (e) {
-            console.warn('Could not refresh friends list');
-          }
-        }
+        // Refresh data to update UI
+        await getFriends();
+        await getUsers();
       } else {
         toast.error("Failed to accept friend request");
       }
     } catch (error) {
-      console.error('Failed to accept friend request:', error);
-      toast.error("Failed to accept friend request");
+      console.error('❌ Failed to accept friend request:', error);
+      toast.error(error.response?.data?.message || "Failed to accept friend request");
     }
   };
 
-  const handleRejectFriendRequest = async (userId) => {
+  // Enhanced friend request rejection
+  const handleRejectFriendRequest = async (requestId) => {
     try {
-      const success = rejectFriendRequest ? await rejectFriendRequest(userId) : false;
+      console.log('❌ Rejecting friend request:', requestId);
+      
+      if (!rejectFriendRequest) {
+        toast.error("Friend request rejection not available");
+        return;
+      }
+
+      if (!requestId) {
+        toast.error("Invalid friend request");
+        return;
+      }
+
+      const success = await rejectFriendRequest(requestId);
       if (success) {
         toast.success("Friend request rejected");
         setShowFriendRequests(false);
+        // Refresh data
+        await getFriends();
+        await getUsers();
       } else {
         toast.error("Failed to reject friend request");
       }
     } catch (error) {
-      console.error('Failed to reject friend request:', error);
-      toast.error("Failed to reject friend request");
+      console.error('❌ Failed to reject friend request:', error);
+      toast.error(error.response?.data?.message || "Failed to reject friend request");
     }
   };
 
@@ -498,13 +580,8 @@ const Sidebar = ({ isMobile, onUserSelect, selectedUser, setIsProfileOpen, colla
         if (success) {
           toast.success("Friend removed");
           // Refresh friends list
-          if (getFriends) {
-            try {
-              await getFriends();
-            } catch (e) {
-              console.warn('Could not refresh friends list');
-            }
-          }
+          await getFriends();
+          await getUsers();
         } else {
           toast.error("Failed to remove friend");
         }
@@ -540,16 +617,14 @@ const Sidebar = ({ isMobile, onUserSelect, selectedUser, setIsProfileOpen, colla
     setSearchResults([]);
   };
 
-  // Enhanced UserListItem with modern design
+  // Enhanced UserListItem with better user handling
   const UserListItem = ({ user, isOnline, isSelected, unseenCount, onSelect, showEmail = false }) => {
     const isFriend = isUserFriend(user._id);
-    const hasSentRequest = Array.isArray(sentRequests) && sentRequests.some(req => 
-      req.to && req.to.toString() === user._id && req.status === 'pending'
-    );
-    const hasReceivedRequest = Array.isArray(friendRequests) && friendRequests.some(req => 
-      req.from && req.from.toString() === user._id && req.status === 'pending'
-    );
+    const hasSentRequest = hasSentFriendRequest(user._id);
+    const hasReceivedRequest = hasReceivedFriendRequest(user._id);
+    const requestId = getFriendRequestId(user._id);
     const canChat = isFriend && canSendMessageToUser(user);
+    const canSendRequest = canSendFriendRequest(user);
 
     const getFriendButton = () => {
       if (isFriend) {
@@ -575,6 +650,16 @@ const Sidebar = ({ isMobile, onUserSelect, selectedUser, setIsProfileOpen, colla
                 <FiMessageSquare size={16} />
               </button>
             )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRemoveFriend(user._id);
+              }}
+              className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded-xl transition-all duration-200 hover:scale-110"
+              title="Remove friend"
+            >
+              <FiUserX size={16} />
+            </button>
           </div>
         );
       } else {
@@ -594,7 +679,7 @@ const Sidebar = ({ isMobile, onUserSelect, selectedUser, setIsProfileOpen, colla
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleAcceptFriendRequest(user._id);
+                  handleAcceptFriendRequest(requestId);
                 }}
                 className="p-2 text-green-400 hover:text-green-300 hover:bg-green-500/20 rounded-xl transition-all duration-200 hover:scale-110"
                 title="Accept request"
@@ -604,7 +689,7 @@ const Sidebar = ({ isMobile, onUserSelect, selectedUser, setIsProfileOpen, colla
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleRejectFriendRequest(user._id);
+                  handleRejectFriendRequest(requestId);
                 }}
                 className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded-xl transition-all duration-200 hover:scale-110"
                 title="Reject request"
@@ -620,9 +705,13 @@ const Sidebar = ({ isMobile, onUserSelect, selectedUser, setIsProfileOpen, colla
                 e.stopPropagation();
                 handleSendFriendRequest(user._id);
               }}
-              className="p-2 text-violet-400 hover:text-violet-300 hover:bg-violet-500/20 rounded-xl transition-all duration-200 hover:scale-110"
-              title="Add friend"
-              disabled={!canSendFriendRequest(user)}
+              className={`p-2 rounded-xl transition-all duration-200 hover:scale-110 ${
+                canSendRequest 
+                  ? 'text-violet-400 hover:text-violet-300 hover:bg-violet-500/20' 
+                  : 'text-gray-400 opacity-50 cursor-not-allowed'
+              }`}
+              title={canSendRequest ? "Add friend" : "Cannot send friend request"}
+              disabled={!canSendRequest}
             >
               <RiUserAddLine size={16} />
             </button>
@@ -637,9 +726,21 @@ const Sidebar = ({ isMobile, onUserSelect, selectedUser, setIsProfileOpen, colla
           if (isFriend && canChat) {
             onSelect(user);
           } else if (isFriend && !canChat) {
-            toast.error("Cannot message this friend due to their privacy settings");
+            toast("Cannot message this friend due to their privacy settings", {
+              icon: '🔒',
+              style: {
+                background: '#8b5cf6',
+                color: 'white',
+              },
+            });
           } else {
-            toast.info("Add this user as a friend to start chatting");
+            toast("Add this user as a friend to start chatting", {
+              icon: '👥',
+              style: {
+                background: '#8b5cf6',
+                color: 'white',
+              },
+            });
           }
         }}
         className={`relative flex items-center gap-3 p-3 rounded-2xl cursor-pointer transition-all duration-300 group backdrop-blur-sm ${
@@ -783,280 +884,49 @@ const Sidebar = ({ isMobile, onUserSelect, selectedUser, setIsProfileOpen, colla
     );
   };
 
-  const FriendRequestItem = ({ request }) => (
-    <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 backdrop-blur-sm border border-white/10 hover:border-white/20 transition-all duration-300">
-      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white font-semibold flex-shrink-0">
-        {request.profilePic ? (
-          <img src={request.profilePic} alt={request.fullName} className="w-full h-full rounded-xl object-cover" />
-        ) : (
-          getInitials(request.fullName)
-        )}
-      </div>
-      <div className="flex flex-col flex-1 min-w-0">
-        <p className="font-semibold text-sm text-white truncate">{request.fullName}</p>
-        <span className="text-xs text-gray-400">Wants to be your friend</span>
-      </div>
-      <div className="flex gap-1">
-        <button
-          onClick={() => handleAcceptFriendRequest(request._id)}
-          className="p-2 text-green-400 hover:text-green-300 hover:bg-green-500/20 rounded-xl transition-all duration-200 hover:scale-110"
-          title="Accept"
-        >
-          <FiCheck size={16} />
-        </button>
-        <button
-          onClick={() => handleRejectFriendRequest(request._id)}
-          className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded-xl transition-all duration-200 hover:scale-110"
-          title="Reject"
-        >
-          <FiX size={16} />
-        </button>
-      </div>
-    </div>
-  );
+  // Enhanced FriendRequestItem component
+  const FriendRequestItem = ({ request }) => {
+    // Handle different request data structures
+    const requestData = request.from || request;
+    const requestId = request._id;
+    
+    if (!requestData) {
+      console.warn('Invalid friend request data:', request);
+      return null;
+    }
 
-  const ProfileSection = () => (
-    <div className="h-full flex flex-col bg-gradient-to-b from-slate-800/50 to-slate-900/50 backdrop-blur-xl">
-      <div className="p-6 border-b border-white/10 flex items-center gap-3">
-        <button 
-          onClick={handleBackToChats}
-          className="text-gray-400 hover:text-white transition-all duration-300 p-2 hover:bg-white/10 rounded-xl hover:scale-105"
-        >
-          <FiArrowLeft size={20} />
-        </button>
-        <h2 className="text-xl font-bold text-white bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent">Profile Settings</h2>
-      </div>
-
-      <div className="p-6 border-b border-white/10">
-        <div className="flex space-x-1 bg-white/10 backdrop-blur-sm rounded-xl p-1">
-          <button 
-            onClick={() => setProfileActiveTab("edit")}
-            className={`flex items-center justify-center gap-2 flex-1 py-3 px-4 text-sm font-semibold transition-all duration-300 rounded-lg ${
-              profileActiveTab === "edit" 
-                ? "text-white bg-gradient-to-r from-violet-500 to-purple-500 shadow-lg" 
-                : "text-gray-400 hover:text-white hover:bg-white/10"
-            }`}
+    return (
+      <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 backdrop-blur-sm border border-white/10 hover:border-white/20 transition-all duration-300">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white font-semibold flex-shrink-0">
+          {requestData.profilePic ? (
+            <img src={requestData.profilePic} alt={requestData.fullName} className="w-full h-full rounded-xl object-cover" />
+          ) : (
+            getInitials(requestData.fullName)
+          )}
+        </div>
+        <div className="flex flex-col flex-1 min-w-0">
+          <p className="font-semibold text-sm text-white truncate">{requestData.fullName || 'Unknown User'}</p>
+          <span className="text-xs text-gray-400">Wants to be your friend</span>
+        </div>
+        <div className="flex gap-1">
+          <button
+            onClick={() => handleAcceptFriendRequest(requestId)}
+            className="p-2 text-green-400 hover:text-green-300 hover:bg-green-500/20 rounded-xl transition-all duration-200 hover:scale-110"
+            title="Accept"
           >
-            <FiUser size={16} />
-            Profile
+            <FiCheck size={16} />
           </button>
-          <button 
-            onClick={() => setProfileActiveTab("password")}
-            className={`flex items-center justify-center gap-2 flex-1 py-3 px-4 text-sm font-semibold transition-all duration-300 rounded-lg ${
-              profileActiveTab === "password" 
-                ? "text-white bg-gradient-to-r from-violet-500 to-purple-500 shadow-lg" 
-                : "text-gray-400 hover:text-white hover:bg-white/10"
-            }`}
+          <button
+            onClick={() => handleRejectFriendRequest(requestId)}
+            className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded-xl transition-all duration-200 hover:scale-110"
+            title="Reject"
           >
-            <FiShield size={16} />
-            Security
+            <FiX size={16} />
           </button>
         </div>
       </div>
-
-      <div className="flex-1 overflow-y-auto p-6">
-        {profileActiveTab === "edit" && (
-          <form onSubmit={handleProfileSubmit} className="space-y-6">
-            <div className="flex flex-col items-center">
-              <div className="relative mb-6">
-                <div className="w-28 h-28 rounded-3xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white font-bold text-3xl relative overflow-hidden border-4 border-violet-500/50 shadow-2xl">
-                  {selectedImg ? (
-                    <img 
-                      src={URL.createObjectURL(selectedImg)} 
-                      alt="Preview" 
-                      className="w-full h-full object-cover"
-                    />
-                  ) : authUser?.profilePic ? (
-                    <img 
-                      src={authUser.profilePic} 
-                      alt="Profile" 
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    getInitials(authUser?.fullName)
-                  )}
-                </div>
-                <label 
-                  htmlFor='avatar'
-                  className="absolute -bottom-2 -right-2 w-12 h-12 bg-gradient-to-r from-violet-500 to-purple-500 rounded-2xl flex items-center justify-center cursor-pointer hover:from-violet-600 hover:to-purple-600 transition-all duration-300 hover:scale-105 shadow-lg border-2 border-[#1c1c2e]"
-                >
-                  <FiCamera size={20} className="text-white" />
-                </label>
-                <input
-                  onChange={handleImageChange}
-                  type='file'
-                  id='avatar'
-                  accept='.png, .jpg, .jpeg, .webp'
-                  hidden
-                />
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-white mb-3">
-                  Full Name *
-                </label>
-                <input
-                  onChange={(e) => setName(e.target.value)}
-                  value={name}
-                  type='text'
-                  required
-                  placeholder='Enter your full name'
-                  className='w-full p-4 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 transition-all duration-300'
-                  disabled={profileLoading}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-white mb-3">
-                  Username
-                </label>
-                <input
-                  onChange={(e) => setUsername(e.target.value)}
-                  value={username}
-                  type='text'
-                  placeholder='Choose a username'
-                  className='w-full p-4 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 transition-all duration-300'
-                  disabled={profileLoading}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-white mb-3">
-                  Email Address
-                </label>
-                <div className="flex items-center gap-3 p-4 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl text-gray-400">
-                  <FiMail size={18} className="text-violet-400" />
-                  <span className="text-white/80">{authUser?.email}</span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-white mb-3">
-                  Bio
-                </label>
-                <textarea
-                  onChange={(e) => setBio(e.target.value)}
-                  value={bio}
-                  placeholder='Tell us about yourself...'
-                  className='w-full p-4 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 transition-all duration-300 resize-none'
-                  rows={4}
-                  disabled={profileLoading}
-                  maxLength={500}
-                ></textarea>
-                <p className="text-xs text-gray-400 mt-2">{bio.length}/500 characters</p>
-              </div>
-            </div>
-
-            <button
-              type='submit'
-              disabled={profileLoading}
-              className={`w-full py-4 bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600 text-white rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-95 ${
-                profileLoading ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
-            >
-              {profileLoading ? (
-                <div className="flex items-center justify-center gap-2">
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                  Saving Changes...
-                </div>
-              ) : (
-                'Save Changes'
-              )}
-            </button>
-          </form>
-        )}
-
-        {profileActiveTab === "password" && (
-          <form onSubmit={handlePasswordChange} className="space-y-6">
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-white mb-3">
-                  Current Password *
-                </label>
-                <input
-                  type='password'
-                  placeholder='Enter your current password'
-                  value={oldPassword}
-                  onChange={(e) => setOldPassword(e.target.value)}
-                  className='w-full p-4 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 transition-all duration-300'
-                  required
-                  disabled={profileLoading}
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-semibold text-white mb-3">
-                  New Password *
-                </label>
-                <input
-                  type='password'
-                  placeholder='Enter new password (min 6 characters)'
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className='w-full p-4 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 transition-all duration-300'
-                  required
-                  disabled={profileLoading}
-                  minLength={6}
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-semibold text-white mb-3">
-                  Confirm New Password *
-                </label>
-                <input
-                  type='password'
-                  placeholder='Confirm new password'
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className='w-full p-4 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 transition-all duration-300'
-                  required
-                  disabled={profileLoading}
-                  minLength={6}
-                />
-              </div>
-            </div>
-
-            <button
-              type='submit'
-              disabled={profileLoading}
-              className={`w-full py-4 bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600 text-white rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-95 ${
-                profileLoading ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
-            >
-              {profileLoading ? (
-                <div className="flex items-center justify-center gap-2">
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                  Updating Password...
-                </div>
-              ) : (
-                'Change Password'
-              )}
-            </button>
-
-            <div className="border-t border-white/10 pt-6 mt-6 space-y-3">
-              <button 
-                onClick={handleLogout}
-                className="w-full flex items-center justify-center gap-3 text-red-400 hover:text-red-300 text-sm py-3 hover:bg-red-500/10 rounded-xl transition-all duration-300 hover:scale-[1.02]"
-              >
-                <FiLogOut size={16} />
-                Sign Out
-              </button>
-              <button 
-                onClick={handleDeleteAccount}
-                className="w-full flex items-center justify-center gap-3 text-gray-400 hover:text-red-400 text-xs py-2 hover:bg-red-500/10 rounded-lg transition-all duration-300"
-              >
-                <FiTrash2 size={14} />
-                Delete Account
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
-    </div>
-  );
+    );
+  };
 
   if (loading) {
     return (
@@ -1078,7 +948,77 @@ const Sidebar = ({ isMobile, onUserSelect, selectedUser, setIsProfileOpen, colla
       <div className={`h-full flex flex-col text-white bg-gradient-to-b from-slate-800/50 to-slate-900/50 backdrop-blur-xl ${
         isMobile ? 'w-full absolute inset-0 z-40' : 'w-full'
       }`}>
-        <ProfileSection />
+        <div className="h-full flex flex-col bg-gradient-to-b from-slate-800/50 to-slate-900/50 backdrop-blur-xl">
+          <div className="p-6 border-b border-white/10 flex items-center gap-3">
+            <button 
+              onClick={handleBackToChats}
+              className="text-gray-400 hover:text-white transition-all duration-300 p-2 hover:bg-white/10 rounded-xl hover:scale-105"
+            >
+              <FiArrowLeft size={20} />
+            </button>
+            <h2 className="text-xl font-bold text-white bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent">Profile Settings</h2>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="max-w-md mx-auto space-y-6">
+              <div className="flex flex-col items-center">
+                <div className="relative mb-6">
+                  <div className="w-28 h-28 rounded-3xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white font-bold text-3xl relative overflow-hidden border-4 border-violet-500/50 shadow-2xl">
+                    {authUser?.profilePic ? (
+                      <img 
+                        src={authUser.profilePic} 
+                        alt="Profile" 
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      getInitials(authUser?.fullName)
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-white mb-3">
+                    Full Name
+                  </label>
+                  <div className="p-4 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl text-white">
+                    {authUser?.fullName}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-white mb-3">
+                    Email Address
+                  </label>
+                  <div className="flex items-center gap-3 p-4 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl text-gray-400">
+                    <FiMail size={18} className="text-violet-400" />
+                    <span className="text-white/80">{authUser?.email}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-white mb-3">
+                    Username
+                  </label>
+                  <div className="p-4 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl text-white">
+                    @{authUser?.username}
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-white/10 pt-6 mt-6 space-y-3">
+                <button 
+                  onClick={handleLogout}
+                  className="w-full flex items-center justify-center gap-3 text-red-400 hover:text-red-300 text-sm py-3 hover:bg-red-500/10 rounded-xl transition-all duration-300 hover:scale-[1.02]"
+                >
+                  <FiLogOut size={16} />
+                  Sign Out
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -1180,8 +1120,8 @@ const Sidebar = ({ isMobile, onUserSelect, selectedUser, setIsProfileOpen, colla
               <span className="text-xs text-violet-300 bg-violet-500/10 px-2 py-1 rounded-full">{friendRequests.length} pending</span>
             </div>
             <div className="space-y-2">
-              {friendRequests.map(request => (
-                <FriendRequestItem key={request._id} request={request} />
+              {friendRequests.map((request, index) => (
+                <FriendRequestItem key={request._id || index} request={request} />
               ))}
             </div>
           </div>
@@ -1287,7 +1227,7 @@ const Sidebar = ({ isMobile, onUserSelect, selectedUser, setIsProfileOpen, colla
                       <div className="flex items-center gap-2 mb-3 px-2">
                         <FiUsers size={18} className="text-gray-400" />
                         <span className="text-sm font-semibold text-gray-400">
-                          Other Users
+                          Other Users ({nonFriendsList.length})
                         </span>
                       </div>
                       <div className="space-y-2">
@@ -1299,7 +1239,13 @@ const Sidebar = ({ isMobile, onUserSelect, selectedUser, setIsProfileOpen, colla
                             isSelected={selectedUser?._id === user._id}
                             unseenCount={0}
                             onSelect={() => {
-                              toast.info(`Add ${user.fullName} as a friend to start chatting`);
+                              toast("Add this user as a friend to start chatting", {
+                                icon: '👥',
+                                style: {
+                                  background: '#8b5cf6',
+                                  color: 'white',
+                                },
+                              });
                             }}
                             showEmail={true}
                           />

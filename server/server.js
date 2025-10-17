@@ -13,25 +13,77 @@ import { Server } from "socket.io";
 const app = express();
 const server = http.createServer(app);
 
-// Initialize Socket.IO server
-// In server.js - Update socket configuration
-export const io = new Server(server, {
-  cors: { 
-    origin: process.env.FRONTEND_URL || "http://localhost:5173",
-    methods: ["GET", "POST", "PUT", "DELETE"],
-    credentials: true
+// ✅ Enhanced CORS Configuration for DevTunnels
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://localhost:5173',
+  'http://127.0.0.1:5173',
+  'https://5d4xmbxq-5173.inc1.devtunnels.ms', // Your frontend DevTunnel
+  'https://5d4xmbxq-5000.inc1.devtunnels.ms', // Your backend DevTunnel (for testing)
+  'https://*.inc1.devtunnels.ms', // Wildcard for all DevTunnel subdomains
+  process.env.FRONTEND_URL
+].filter(Boolean);
+
+// Enhanced CORS configuration
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    // Check if origin is in allowed list or matches DevTunnel pattern
+    const isAllowed = allowedOrigins.some(allowedOrigin => {
+      if (allowedOrigin.includes('*')) {
+        // Handle wildcard domains
+        const domainPattern = allowedOrigin.replace('*.', '[^.]+.');
+        const regex = new RegExp(`^https?://${domainPattern}$`);
+        return regex.test(origin);
+      }
+      return origin === allowedOrigin;
+    });
+
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      // For development, log but allow the request
+      if (process.env.NODE_ENV === 'development') {
+        console.log('⚠️  Allowing origin in development:', origin);
+        return callback(null, true);
+      }
+      console.log('🔒 CORS blocked for origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
   },
-  pingTimeout: 60000,        // Increase timeout
-  pingInterval: 25000,       // Increase interval
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'X-Requested-With',
+    'Accept',
+    'Origin',
+    'Access-Control-Request-Method',
+    'Access-Control-Request-Headers',
+    'X-Device-Type'
+  ],
+  exposedHeaders: [
+    'Access-Control-Allow-Origin',
+    'Access-Control-Allow-Credentials'
+  ],
+  maxAge: 86400 // 24 hours for preflight cache
+};
+
+// Initialize Socket.IO server with enhanced CORS
+export const io = new Server(server, {
+  cors: corsOptions,
+  pingTimeout: 60000,
+  pingInterval: 25000,
   connectionStateRecovery: {
-    // Enable connection state recovery
-    maxDisconnectionDuration: 2 * 60 * 1000, // 2 minutes
+    maxDisconnectionDuration: 2 * 60 * 1000,
     skipMiddlewares: true,
   },
-  transports: ['websocket', 'polling'], // Specify transports
+  transports: ['websocket', 'polling'],
+  allowEIO3: true, // Allow Engine.IO v3 clients
 });
-
-// (Socket connection handling consolidated further down in this file.)
 
 // Online users mapping
 export const userSocketMap = {};
@@ -39,7 +91,7 @@ export const userSocketMap = {};
 // ✅ Socket.IO connection
 io.on("connection", (socket) => {
   const userId = socket.handshake.query.userId;
-  console.log("✅ User Connected:", userId, "Socket ID:", socket.id);
+  console.log("✅ User Connected:", userId, "Socket ID:", socket.id, "From:", socket.handshake.headers.origin);
 
   // 🆕 Validation for userId
   if (userId && typeof userId === 'string') {
@@ -417,12 +469,34 @@ io.on("connection", (socket) => {
   });
 });
 
-// Middleware setup
-app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:5173",
-  credentials: true
-}));
-app.use(express.json({ limit: "50mb" })); // large limit for media uploads
+// ✅ Apply CORS middleware
+app.use(cors(corsOptions));
+
+// ✅ Add security headers
+app.use((req, res, next) => {
+  // Security headers
+  res.header('X-Content-Type-Options', 'nosniff');
+  res.header('X-Frame-Options', 'DENY');
+  res.header('X-XSS-Protection', '1; mode=block');
+  
+  // CORS headers
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.some(allowed => {
+    if (allowed.includes('*')) {
+      const domainPattern = allowed.replace('*.', '[^.]+.');
+      const regex = new RegExp(`^https?://${domainPattern}$`);
+      return regex.test(origin);
+    }
+    return origin === allowed;
+  })) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  next();
+});
+
+app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 // Attach Socket.IO to requests
@@ -431,12 +505,17 @@ app.use((req, res, next) => {
   next();
 });
 
-// Test route
+// Test route with enhanced response
 app.get("/api/status", (req, res) => res.json({ 
   success: true, 
   message: "🚀 Server is Live and Ready",
   timestamp: new Date(),
-  onlineUsers: Object.keys(userSocketMap).length
+  onlineUsers: Object.keys(userSocketMap).length,
+  allowedOrigins: allowedOrigins,
+  clientIP: req.ip,
+  userAgent: req.headers['user-agent'],
+  backendURL: 'https://5d4xmbxq-5000.inc1.devtunnels.ms',
+  frontendURL: 'https://5d4xmbxq-5173.inc1.devtunnels.ms'
 }));
 
 // Health check route
@@ -447,12 +526,13 @@ app.get("/api/health", (req, res) => {
     timestamp: new Date(),
     uptime: process.uptime(),
     memory: process.memoryUsage(),
-    onlineUsers: Object.keys(userSocketMap).length
+    onlineUsers: Object.keys(userSocketMap).length,
+    allowedOrigins: allowedOrigins
   });
 });
 
-// ✅ FIXED: Routers with consistent paths
-app.use("/api/users", userRouter);  // Changed from /api/auth to /api/users
+// API routes
+app.use("/api/users", userRouter);
 app.use("/api/messages", messageRouter);
 app.use("/api/groups", groupRouter);
 app.use("/api/upload", uploadRouter);
@@ -461,13 +541,33 @@ app.use("/api/upload", uploadRouter);
 app.use((req, res) => {
   res.status(404).json({
     success: false,
-    message: `Route not found: ${req.method} ${req.path}`
+    message: `Route not found: ${req.method} ${req.path}`,
+    availableRoutes: [
+      '/api/status',
+      '/api/health',
+      '/api/users/*',
+      '/api/messages/*',
+      '/api/groups/*',
+      '/api/upload/*'
+    ]
   });
 });
 
 // Global error handler
 app.use((error, req, res, next) => {
   console.error("🚨 Global error handler:", error);
+  
+  // Handle CORS errors specifically
+  if (error.message === 'Not allowed by CORS') {
+    return res.status(403).json({
+      success: false,
+      message: "CORS policy: Origin not allowed",
+      yourOrigin: req.headers.origin,
+      allowedOrigins: allowedOrigins,
+      tip: "Make sure your frontend is using: https://5d4xmbxq-5173.inc1.devtunnels.ms"
+    });
+  }
+  
   res.status(500).json({
     success: false,
     message: "Internal server error",
@@ -498,10 +598,9 @@ const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
   console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔗 CORS enabled for: ${process.env.FRONTEND_URL || 'http://localhost:5173'}`);
-  console.log(`📡 API Routes:`);
-  console.log(`   - Users: /api/users/*`);
-  console.log(`   - Messages: /api/messages/*`);
-  console.log(`   - Groups: /api/groups/*`);
-  console.log(`   - Upload: /api/upload/*`);
+  console.log(`🔗 Backend URL: https://5d4xmbxq-5000.inc1.devtunnels.ms`);
+  console.log(`🔗 Frontend URL: https://5d4xmbxq-5173.inc1.devtunnels.ms`);
+  console.log(`📱 Mobile access enabled via DevTunnels`);
+  console.log(`🔗 CORS enabled for:`, allowedOrigins);
+  console.log(`📡 API Status: https://5d4xmbxq-5000.inc1.devtunnels.ms/api/status`);
 });

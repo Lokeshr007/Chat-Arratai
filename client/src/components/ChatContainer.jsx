@@ -40,6 +40,7 @@ import {
   Card,
   CardMedia,
   GlobalStyles,
+  SwipeableDrawer,
 } from "@mui/material";
 import {
   Send as SendIcon,
@@ -93,6 +94,8 @@ import {
   FilterList as FilterIcon,
   Sort as SortIcon,
   SmsFailed as SmsFailedIcon,
+  DoneAll as DoneAllIcon,
+  Done as DoneIcon,
 } from "@mui/icons-material";
 import { Picker } from 'emoji-mart';
 import 'emoji-mart/css/emoji-mart.css';
@@ -115,7 +118,7 @@ const MODERN_COLORS = {
   ai: 'linear-gradient(135deg, #ff6b6b 0%, #feca57 100%)',
 };
 
-// Styled components for modern design
+// Enhanced Styled Components
 const GlassPaper = styled(Paper)(({ theme }) => ({
   background: MODERN_COLORS.glass,
   backdropFilter: 'blur(20px)',
@@ -157,6 +160,10 @@ const MessageBubblePaper = styled(Paper, {
       height: '1px',
       background: `linear-gradient(90deg, transparent, ${alpha(theme.palette.common.white, 0.2)}, transparent)`,
     },
+    '&:hover': {
+      transform: 'translateY(-1px)',
+      boxShadow: '0 6px 25px rgba(0, 0, 0, 0.15)',
+    },
   })
 );
 
@@ -196,19 +203,12 @@ const ModernTextField = styled(TextField)(({ theme }) => ({
     '& fieldset': {
       border: 'none',
     },
-    '&.Mui-disabled': {
-      background: alpha(theme.palette.common.white, 0.05),
-      color: alpha(theme.palette.common.white, 0.3),
-    },
   },
   '& .MuiOutlinedInput-input': {
     padding: '14px 20px',
     color: theme.palette.common.white,
     '&::placeholder': {
       color: alpha(theme.palette.common.white, 0.5),
-    },
-    '&:disabled': {
-      color: alpha(theme.palette.common.white, 0.3),
     },
   },
 }));
@@ -228,42 +228,56 @@ const AnimatedIconButton = styled(IconButton)(({ theme }) => ({
   },
 }));
 
-// Enhanced Message Status Component
+// Enhanced Message Status Component with proper ticks
 const MessageStatus = ({ message, authUser }) => {
   if (message.senderId?._id !== authUser._id && message.senderId !== authUser._id) return null;
 
-  const status = message.status || (message.seen ? 'seen' : message.delivered ? 'delivered' : 'sending');
+  const getStatus = () => {
+    if (message.status === 'failed') return 'failed';
+    if (message.seen || message.seenBy?.some(seen => seen.userId === authUser._id)) return 'seen';
+    if (message.delivered) return 'delivered';
+    if (message.status === 'sending') return 'sending';
+    return 'sent';
+  };
+
+  const status = getStatus();
 
   const StatusIcon = () => {
     switch (status) {
       case 'sending':
         return (
-          <Tooltip title="Sending" arrow>
+          <Tooltip title="Sending..." arrow>
             <ScheduleIcon sx={{ fontSize: 16, color: alpha('#fff', 0.6) }} />
+          </Tooltip>
+        );
+      case 'sent':
+        return (
+          <Tooltip title="Sent" arrow>
+            <DoneIcon sx={{ fontSize: 16, color: alpha('#fff', 0.7) }} />
           </Tooltip>
         );
       case 'delivered':
         return (
           <Tooltip title="Delivered" arrow>
-            <CheckCircleIcon sx={{ fontSize: 16, color: 'success.main' }} />
+            <DoneAllIcon sx={{ fontSize: 16, color: alpha('#fff', 0.7) }} />
           </Tooltip>
         );
       case 'seen':
         return (
           <Tooltip title="Seen" arrow>
-            <CheckCircleIcon sx={{ fontSize: 16, color: 'primary.main' }} />
+            <DoneAllIcon sx={{ fontSize: 16, color: '#4CAF50' }} />
           </Tooltip>
         );
       case 'failed':
         return (
           <Tooltip title="Failed to send" arrow>
-            <ErrorIcon sx={{ fontSize: 16, color: 'error.main' }} />
+            <ErrorIcon sx={{ fontSize: 16, color: '#f44336' }} />
           </Tooltip>
         );
       default:
         return (
           <Tooltip title="Sent" arrow>
-            <CheckCircleIcon sx={{ fontSize: 16, color: alpha('#fff', 0.6) }} />
+            <DoneIcon sx={{ fontSize: 16, color: alpha('#fff', 0.6) }} />
           </Tooltip>
         );
     }
@@ -272,7 +286,7 @@ const MessageStatus = ({ message, authUser }) => {
   return <StatusIcon />;
 };
 
-// Enhanced Selection Actions Bar Component
+// Enhanced Selection Actions Bar
 const SelectionActionsBar = ({ 
   selectedCount, 
   clearSelection, 
@@ -301,7 +315,7 @@ const SelectionActionsBar = ({
           alignItems: 'center',
           gap: 2,
           zIndex: 1000,
-          minWidth: 400,
+          minWidth: { xs: '90%', sm: 400 },
           border: `1px solid ${alpha('#fff', 0.2)}`,
           boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
           animation: 'float 3s ease-in-out infinite',
@@ -328,13 +342,13 @@ const SelectionActionsBar = ({
             {selectedCount}
           </Box>
           <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '0.9rem' }}>
-            message{selectedCount > 1 ? 's' : ''} selected
+            {selectedCount} selected
           </Typography>
         </Box>
         
         <Divider orientation="vertical" flexItem sx={{ backgroundColor: alpha('#fff', 0.3), height: 24 }} />
         
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
           <Tooltip title="Clear Selection" arrow>
             <AnimatedIconButton 
               size="small" 
@@ -412,14 +426,17 @@ const SelectionActionsBar = ({
   );
 };
 
-// AI Assistant Component
-const AIAssistant = ({ onAIAction, theme }) => {
-  const [aiSuggestions, setAiSuggestions] = useState([
+// Enhanced AI Assistant Component
+const AIAssistant = ({ onAIAction, theme, onClose }) => {
+  const [aiSuggestions] = useState([
     "Help me improve this message",
     "Translate to Spanish",
     "Make it more professional",
     "Shorten this message",
-    "Add emojis to make it friendly"
+    "Add emojis to make it friendly",
+    "Check grammar and spelling",
+    "Make it more casual",
+    "Rephrase for clarity"
   ]);
 
   return (
@@ -432,13 +449,19 @@ const AIAssistant = ({ onAIAction, theme }) => {
           background: MODERN_COLORS.ai,
           borderRadius: '16px',
           border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
+          position: 'relative',
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-          <AIIcon sx={{ color: 'white' }} />
-          <Typography variant="body2" fontWeight="bold" color="white">
-            AI Assistant
-          </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <AIIcon sx={{ color: 'white' }} />
+            <Typography variant="body2" fontWeight="bold" color="white">
+              AI Assistant
+            </Typography>
+          </Box>
+          <IconButton size="small" onClick={onClose} sx={{ color: 'white' }}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
         </Box>
         <Typography variant="caption" color="white" sx={{ opacity: 0.9, mb: 1.5, display: 'block' }}>
           Need help with your message?
@@ -457,7 +480,9 @@ const AIAssistant = ({ onAIAction, theme }) => {
                 height: '24px',
                 '&:hover': {
                   background: alpha(theme.palette.common.white, 0.3),
+                  transform: 'scale(1.05)',
                 },
+                transition: 'all 0.2s ease',
               }}
             />
           ))}
@@ -467,7 +492,7 @@ const AIAssistant = ({ onAIAction, theme }) => {
   );
 };
 
-// Enhanced Message Bubble Component
+// Enhanced Message Bubble Component with proper hover effects and reactions
 const MessageBubble = React.memo(({ 
   message, 
   isOwnMessage, 
@@ -485,7 +510,6 @@ const MessageBubble = React.memo(({
   authUser,
   theme,
   onMessageMenuOpen,
-  onTranslateMessage,
   onPinMessage,
   isPinned
 }) => {
@@ -496,10 +520,12 @@ const MessageBubble = React.memo(({
   const [isTranslating, setIsTranslating] = useState(false);
   const isSelected = selectedMessages.has(message._id);
   
+  const bubbleRef = useRef(null);
+
   // Close reactions panel when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (reactionsPanelOpen) {
+      if (bubbleRef.current && !bubbleRef.current.contains(event.target)) {
         setReactionsPanelOpen(false);
         setShowReactions(false);
       }
@@ -507,7 +533,7 @@ const MessageBubble = React.memo(({
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [reactionsPanelOpen]);
+  }, []);
 
   const handleReactionClick = (emoji) => {
     if (message.reactions?.some(r => r.emoji === emoji && r.users?.includes(authUser._id))) {
@@ -538,8 +564,11 @@ const MessageBubble = React.memo(({
     }
   };
 
+  const quickReactions = ['👍', '❤️', '😂', '😮', '😢', '😠'];
+
   return (
     <Box
+      ref={bubbleRef}
       sx={{
         display: 'flex',
         justifyContent: isOwnMessage ? 'flex-end' : 'flex-start',
@@ -605,7 +634,7 @@ const MessageBubble = React.memo(({
       )}
 
       <Box sx={{ 
-        maxWidth: '75%', 
+        maxWidth: { xs: '85%', sm: '75%' }, 
         minWidth: '120px', 
         position: 'relative',
         opacity: isSelectMode && !isSelected ? 0.6 : 1,
@@ -692,7 +721,7 @@ const MessageBubble = React.memo(({
               color: isOwnMessage ? 'white' : 'text.primary',
               cursor: isSelectMode ? 'pointer' : 'default',
               '&:hover': {
-                transform: isSelectMode ? 'scale(1.02)' : 'none',
+                transform: isSelectMode ? 'scale(1.02)' : 'translateY(-1px)',
                 '& .message-actions': {
                   opacity: 1,
                   transform: 'translateY(0)',
@@ -767,6 +796,7 @@ const MessageBubble = React.memo(({
                       component="img"
                       image={media}
                       alt="Shared media"
+                      sx={{ maxHeight: 300, objectFit: 'cover' }}
                       onError={(e) => {
                         e.target.style.display = 'none';
                       }}
@@ -932,7 +962,65 @@ const MessageBubble = React.memo(({
               </Box>
             </Box>
 
-            {/* Enhanced Quick reactions */}
+            {/* Quick reactions bar that appears on hover */}
+            {isHovered && !isSelectMode && !showReactions && (
+              <Fade in={isHovered}>
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    top: -35,
+                    left: isOwnMessage ? 'auto' : 0,
+                    right: isOwnMessage ? 0 : 'auto',
+                    display: 'flex',
+                    gap: 0.5,
+                    borderRadius: '20px',
+                    background: MODERN_COLORS.glassDark,
+                    backdropFilter: 'blur(10px)',
+                    border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
+                    p: 0.5,
+                    zIndex: 5,
+                  }}
+                >
+                  {quickReactions.map((emoji, index) => (
+                    <AnimatedIconButton
+                      key={index}
+                      size="small"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleReactionClick(emoji);
+                      }}
+                      sx={{ 
+                        fontSize: '0.9rem',
+                        width: 28,
+                        height: 28,
+                        '&:hover': {
+                          transform: 'scale(1.3)',
+                        }
+                      }}
+                    >
+                      {emoji}
+                    </AnimatedIconButton>
+                  ))}
+                  <AnimatedIconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowReactions(true);
+                      setReactionsPanelOpen(true);
+                    }}
+                    sx={{ 
+                      width: 28,
+                      height: 28,
+                      fontSize: '0.8rem',
+                    }}
+                  >
+                    <FavoriteIcon fontSize="small" />
+                  </AnimatedIconButton>
+                </Box>
+              </Fade>
+            )}
+
+            {/* Enhanced reactions panel */}
             {showReactions && !isSelectMode && (
               <Box
                 sx={{
@@ -1027,27 +1115,6 @@ const MessageBubble = React.memo(({
                   </Tooltip>
                 )}
 
-                <Tooltip title="Add Reaction" arrow>
-                  <AnimatedIconButton
-                    size="small"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowReactions(!showReactions);
-                      setReactionsPanelOpen(!showReactions);
-                    }}
-                    sx={{
-                      background: MODERN_COLORS.glassDark,
-                      color: 'white',
-                      '&:hover': {
-                        background: MODERN_COLORS.primary,
-                        transform: 'scale(1.1)',
-                      },
-                    }}
-                  >
-                    <FavoriteIcon fontSize="small" />
-                  </AnimatedIconButton>
-                </Tooltip>
-                
                 <Tooltip title="More Options" arrow>
                   <AnimatedIconButton
                     size="small"
@@ -1143,6 +1210,78 @@ const MessageBubble = React.memo(({
   );
 });
 
+// Enhanced Mobile Drawer for additional options
+const MobileOptionsDrawer = ({ open, onClose, onClearChat, onSearch, onSelectMode }) => {
+  return (
+    <SwipeableDrawer
+      anchor="bottom"
+      open={open}
+      onClose={onClose}
+      onOpen={() => {}}
+      sx={{
+        '& .MuiDrawer-paper': {
+          background: MODERN_COLORS.glassDark,
+          backdropFilter: 'blur(20px)',
+          borderTopLeftRadius: '20px',
+          borderTopRightRadius: '20px',
+          border: `1px solid ${alpha('#fff', 0.1)}`,
+          color: 'white',
+        },
+      }}
+    >
+      <Box sx={{ p: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+          <Box sx={{ width: 40, height: 4, background: alpha('#fff', 0.3), borderRadius: 2 }} />
+        </Box>
+        
+        <List>
+          <ListItem 
+            button 
+            onClick={() => {
+              onSearch();
+              onClose();
+            }}
+            sx={{ borderRadius: '12px', mb: 1 }}
+          >
+            <ListItemIcon>
+              <SearchIcon sx={{ color: 'white' }} />
+            </ListItemIcon>
+            <ListItemText primary="Search Messages" />
+          </ListItem>
+          
+          <ListItem 
+            button 
+            onClick={() => {
+              onSelectMode();
+              onClose();
+            }}
+            sx={{ borderRadius: '12px', mb: 1 }}
+          >
+            <ListItemIcon>
+              <SelectAllIcon sx={{ color: 'white' }} />
+            </ListItemIcon>
+            <ListItemText primary="Select Messages" />
+          </ListItem>
+          
+          <ListItem 
+            button 
+            onClick={() => {
+              onClearChat();
+              onClose();
+            }}
+            sx={{ borderRadius: '12px', mb: 1 }}
+          >
+            <ListItemIcon>
+              <ClearAllIcon sx={{ color: 'error.main' }} />
+            </ListItemIcon>
+            <ListItemText primary="Clear Chat" sx={{ color: 'error.main' }} />
+          </ListItem>
+        </List>
+      </Box>
+    </SwipeableDrawer>
+  );
+};
+
 // Main ChatContainer Component
 const ChatContainer = ({ onOpenProfile, onBack }) => {
   const theme = useTheme();
@@ -1204,6 +1343,7 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredMessages, setFilteredMessages] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
   // Selection states
   const [selectedMessages, setSelectedMessages] = useState(new Set());
@@ -1220,71 +1360,53 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
   const audioRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const inputRef = useRef(null);
+  const emojiPickerRef = useRef(null);
 
   // Enhanced message persistence
   const loadMessages = useCallback(async (forceRefresh = false) => {
     if (!selectedUser?._id) {
-      console.log("No selected user, clearing messages");
       setMessages([]);
       return;
     }
     
     try {
-      console.log("🔄 Loading messages for user:", selectedUser._id, "Force refresh:", forceRefresh);
-      
-      // Always check cache first for instant loading
       const cachedMessages = getCachedMessages(selectedUser._id);
       
       if (cachedMessages && cachedMessages.length > 0 && !forceRefresh) {
-        console.log("📦 Using cached messages:", cachedMessages.length);
         setMessages(cachedMessages);
         setMessageError(null);
         
-        // Background refresh for updates (don't await this)
+        // Background refresh
         setTimeout(async () => {
           try {
             const freshMessages = await getMessage(selectedUser._id, 1, true);
             if (freshMessages && freshMessages.length !== cachedMessages.length) {
-              console.log("🔄 Background refresh: messages updated");
               setMessages(freshMessages);
             }
           } catch (error) {
-            console.log("⚠️ Background refresh failed, using cached messages");
+            console.log("Background refresh failed");
           }
         }, 500);
         
         return;
       }
       
-      // Fetch fresh messages
-      console.log("📡 Fetching fresh messages...");
       const freshMessages = await getMessage(selectedUser._id, 1, true);
       
       if (freshMessages && freshMessages.length > 0) {
-        console.log("✅ Fresh messages loaded:", freshMessages.length);
         setMessages(freshMessages);
         setMessageError(null);
       } else {
-        console.log("💬 No messages in this chat");
         setMessages([]);
         setMessageError("No messages yet. Start a conversation!");
       }
       
     } catch (error) {
-      console.error("❌ Failed to load messages:", error);
-      
-      // Don't show error for cancelled requests
-      if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
-        console.log('ℹ️ Message load was cancelled');
-        return;
-      }
-      
+      console.error("Failed to load messages:", error);
       setMessageError("Failed to load messages");
       
-      // Fallback to cached messages
       const cachedMessages = getCachedMessages(selectedUser._id);
       if (cachedMessages && cachedMessages.length > 0) {
-        console.log("🔄 Using cached messages as fallback");
         setMessages(cachedMessages);
         toast.error("Using cached messages - connection issue");
       } else {
@@ -1297,7 +1419,6 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
   // Enhanced cache persistence
   useEffect(() => {
     if (selectedUser && messages.length > 0) {
-      console.log("Caching messages:", messages.length, "for user:", selectedUser._id);
       setCachedMessages(selectedUser._id, messages);
     }
   }, [messages, selectedUser, setCachedMessages]);
@@ -1305,102 +1426,32 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
   // Load messages when component mounts or user changes
   useEffect(() => {
     if (selectedUser) {
-      console.log("User selected, loading messages...");
+      loadMessages();
       
-      // Use a flag to track if component is still mounted
-      let isMounted = true;
-      
-      const loadData = async () => {
-        try {
-          await loadMessages();
-          
-          if (isMounted) {
-            clearSelection();
-            
-            // Load pinned messages with error handling
-            try {
-              await getPinnedMessages(selectedUser._id);
-            } catch (pinError) {
-              console.log('⚠️ Could not load pinned messages:', pinError.message);
-              // This is non-critical, so we don't show error to user
-            }
-          }
-        } catch (error) {
-          if (isMounted) {
-            console.error('❌ Error loading chat data:', error);
-          }
-        }
-      };
-      
-      loadData();
-      
-      return () => {
-        isMounted = false;
-      };
+      // Load pinned messages
+      try {
+        getPinnedMessages(selectedUser._id);
+      } catch (pinError) {
+        console.log('Could not load pinned messages');
+      }
     } else {
-      console.log("No user selected, clearing messages");
       setMessages([]);
     }
   }, [selectedUser?._id]);
 
-  // Handle page refresh - restore from cache immediately
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      // Save current state to localStorage for immediate restoration
-      if (selectedUser && messages.length > 0) {
-        localStorage.setItem(`chat-${selectedUser._id}-backup`, JSON.stringify({
-          messages,
-          timestamp: Date.now()
-        }));
-      }
-    };
-
-    const restoreFromBackup = () => {
-      if (selectedUser) {
-        const backup = localStorage.getItem(`chat-${selectedUser._id}-backup`);
-        if (backup) {
-          try {
-            const { messages: backupMessages, timestamp } = JSON.parse(backup);
-            // Only use backup if it's less than 5 minutes old
-            if (Date.now() - timestamp < 5 * 60 * 1000) {
-              console.log("Restoring from backup");
-              setMessages(backupMessages);
-            }
-            // Clean up
-            localStorage.removeItem(`chat-${selectedUser._id}-backup`);
-          } catch (error) {
-            console.error("Failed to restore from backup:", error);
-          }
-        }
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    restoreFromBackup();
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [selectedUser, messages]);
-
   // Enhanced reactions system
   const handleReactToMessage = useCallback(async (messageId, emoji) => {
-    if (!messageId || !emoji) {
-      console.error("Invalid reaction parameters");
-      return;
-    }
+    if (!messageId || !emoji) return;
 
     try {
-      console.log("Adding reaction:", emoji, "to message:", messageId);
       await reactToMessage(messageId, emoji);
       
-      // Optimistic update for better UX
+      // Optimistic update
       setMessages(prev => prev.map(msg => {
         if (msg._id === messageId) {
           const existingReaction = msg.reactions?.find(r => r.emoji === emoji);
           
           if (existingReaction) {
-            // Update existing reaction
             return {
               ...msg,
               reactions: msg.reactions.map(r =>
@@ -1414,7 +1465,6 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
               )
             };
           } else {
-            // Add new reaction
             return {
               ...msg,
               reactions: [
@@ -1434,20 +1484,14 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
     } catch (error) {
       console.error("Failed to react to message:", error);
       toast.error("Failed to add reaction");
-      
-      // Revert optimistic update
       loadMessages(true);
     }
   }, [reactToMessage, authUser._id, loadMessages]);
 
   const handleRemoveReaction = useCallback(async (messageId, emoji) => {
-    if (!messageId || !emoji) {
-      console.error("Invalid reaction removal parameters");
-      return;
-    }
+    if (!messageId || !emoji) return;
 
     try {
-      console.log("Removing reaction:", emoji, "from message:", messageId);
       await removeReaction(messageId, emoji);
       
       // Optimistic update
@@ -1477,8 +1521,6 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
     } catch (error) {
       console.error("Failed to remove reaction:", error);
       toast.error("Failed to remove reaction");
-      
-      // Revert optimistic update
       loadMessages(true);
     }
   }, [removeReaction, authUser._id, loadMessages]);
@@ -1620,19 +1662,13 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
     if (!selectedUser) return;
 
     try {
-      console.log('🔍 CLEAR CHAT TRIGGERED - Chat ID:', selectedUser._id);
-      
-      // Use the permanent clear function from context
       const success = await clearChatPermanently(selectedUser._id);
       
       if (success) {
         setClearChatDialogOpen(false);
-        console.log('✅ Chat cleared successfully');
-      } else {
-        console.log('❌ Chat clear failed');
       }
     } catch (error) {
-      console.error("❌ Clear chat error:", error);
+      console.error("Clear chat error:", error);
       toast.error("Failed to clear chat");
     }
   }, [selectedUser, clearChatPermanently]);
@@ -1699,7 +1735,7 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
       return;
     }
 
-    // FRIENDS ONLY CHECK - Enhanced
+    // FRIENDS ONLY CHECK
     if (!isGroup) {
       const isFriend = friends?.some(friend => friend._id === selectedUser._id) || false;
       if (!isFriend) {
@@ -1720,7 +1756,6 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
       if (mediaFiles.length > 0) {
         setUploadSnackbar({ open: true, message: 'Uploading files...' });
         
-        // Enhanced upload with better error handling
         const uploadPromises = mediaFiles.map(async (file, index) => {
           try {
             const url = await uploadFile(file, (progress) => {
@@ -1772,7 +1807,6 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
       console.error("Send message failed:", error);
       toast.error(error.message || "Failed to send message");
       
-      // Show specific error messages
       if (error.message.includes('network') || error.message.includes('connection')) {
         toast.error("Network error: Please check your internet connection");
       }
@@ -1795,6 +1829,15 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
         break;
       case "Add emojis to make it friendly":
         setInput(prev => prev + " 😊");
+        break;
+      case "Check grammar and spelling":
+        setInput(prev => prev + " [AI: Grammar check applied]");
+        break;
+      case "Make it more casual":
+        setInput(prev => prev.replace(/Hello/gi, "Hey").replace(/Thank you/gi, "Thanks"));
+        break;
+      case "Rephrase for clarity":
+        setInput(prev => prev + " [AI: Rephrased for better clarity]");
         break;
       default:
         break;
@@ -2035,7 +2078,18 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
     }
   };
 
-  // Effects
+  // Close emoji picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target)) {
+        setShowEmoji(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // Mark messages as seen when user is active
   useEffect(() => {
     if (selectedUser && messages.length > 0) {
@@ -2300,26 +2354,41 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
               </AnimatedIconButton>
             </Tooltip>
 
-            <Tooltip title={isSelectMode ? "Exit Selection" : "Select Messages"} arrow>
-              <AnimatedIconButton 
-                onClick={() => setIsSelectMode(!isSelectMode)}
-                sx={{ 
-                  color: isSelectMode ? 'primary.main' : 'white',
-                  background: isSelectMode ? alpha(theme.palette.primary.main, 0.2) : 'transparent',
-                }}
-              >
-                <SelectAllIcon />
-              </AnimatedIconButton>
-            </Tooltip>
+            {!isMobile && (
+              <>
+                <Tooltip title={isSelectMode ? "Exit Selection" : "Select Messages"} arrow>
+                  <AnimatedIconButton 
+                    onClick={() => setIsSelectMode(!isSelectMode)}
+                    sx={{ 
+                      color: isSelectMode ? 'primary.main' : 'white',
+                      background: isSelectMode ? alpha(theme.palette.primary.main, 0.2) : 'transparent',
+                    }}
+                  >
+                    <SelectAllIcon />
+                  </AnimatedIconButton>
+                </Tooltip>
 
-            <Tooltip title="More Options" arrow>
-              <AnimatedIconButton 
-                onClick={(e) => setMoreOptionsAnchor(e.currentTarget)}
-                sx={{ color: 'white' }}
-              >
-                <MoreVertIcon />
-              </AnimatedIconButton>
-            </Tooltip>
+                <Tooltip title="More Options" arrow>
+                  <AnimatedIconButton 
+                    onClick={(e) => setMoreOptionsAnchor(e.currentTarget)}
+                    sx={{ color: 'white' }}
+                  >
+                    <MoreVertIcon />
+                  </AnimatedIconButton>
+                </Tooltip>
+              </>
+            )}
+
+            {isMobile && (
+              <Tooltip title="Options" arrow>
+                <AnimatedIconButton 
+                  onClick={() => setMobileDrawerOpen(true)}
+                  sx={{ color: 'white' }}
+                >
+                  <MoreVertIcon />
+                </AnimatedIconButton>
+              </Tooltip>
+            )}
 
             <Tooltip title="View Profile" arrow>
               <AnimatedIconButton 
@@ -2380,14 +2449,14 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
           background: 'transparent',
           position: 'relative',
           '&::-webkit-scrollbar': {
-            width: 8,
+            width: 6,
           },
           '&::-webkit-scrollbar-track': {
             background: 'transparent',
           },
           '&::-webkit-scrollbar-thumb': {
             background: MODERN_COLORS.primary,
-            borderRadius: 4,
+            borderRadius: 3,
             '&:hover': {
               background: MODERN_COLORS.secondary,
             },
@@ -2530,7 +2599,11 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
 
       {/* AI Assistant */}
       {showAIAssistant && (
-        <AIAssistant onAIAction={handleAIAction} theme={theme} />
+        <AIAssistant 
+          onAIAction={handleAIAction} 
+          theme={theme} 
+          onClose={() => setShowAIAssistant(false)}
+        />
       )}
 
       {/* Selection Actions Bar */}
@@ -2746,6 +2819,7 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
           {/* Emoji Picker */}
           {showEmoji && (
             <Box 
+              ref={emojiPickerRef}
               sx={{ 
                 position: 'absolute', 
                 bottom: '100%', 
@@ -2769,7 +2843,6 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
                 set="apple"
                 showPreview={false}
                 showSkinTones={false}
-                onClickOutside={() => setShowEmoji(false)}
               />
             </Box>
           )}
@@ -2848,6 +2921,15 @@ const ChatContainer = ({ onOpenProfile, onBack }) => {
           </FloatingActionButton>
         </Box>
       </GlassPaper>
+
+      {/* Mobile Options Drawer */}
+      <MobileOptionsDrawer
+        open={mobileDrawerOpen}
+        onClose={() => setMobileDrawerOpen(false)}
+        onClearChat={() => setClearChatDialogOpen(true)}
+        onSearch={() => setIsSearching(true)}
+        onSelectMode={() => setIsSelectMode(true)}
+      />
 
       {/* ============ DIALOGS AND MENUS ============ */}
 

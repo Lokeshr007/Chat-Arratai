@@ -22,6 +22,7 @@ import {
   resendVerification,
   getPendingRequests,
   sendFriendRequest,
+  resendVerificationEmail
 } from "../controllers/AuthController.js";
 import { protectRoute, checkAuth } from "../middleware/auth.js";
 import User from "../models/User.js";
@@ -35,8 +36,9 @@ router.post("/forgot-password", forgotPassword);
 router.put("/reset-password", resetPassword);
 router.get("/verify-email", verifyEmail);
 router.post("/resend-verification", resendVerification);
+router.post('/resend-verification-email', resendVerificationEmail);
 
-// Protected routes - FIXED: Add protectRoute to all these routes
+// Protected routes
 router.get("/check", protectRoute, checkAuth);
 router.put("/change-password", protectRoute, changePassword);
 router.put("/profile", protectRoute, updateProfile);
@@ -52,8 +54,9 @@ router.post("/friend-request/email", protectRoute, sendFriendRequestByEmail);
 router.put("/friend-request/accept/:requestId", protectRoute, acceptFriendRequest);
 router.put("/friend-request/reject/:requestId", protectRoute, rejectFriendRequest);
 router.delete("/friend/:friendId", protectRoute, removeFriend);
+router.post("/friend-request/:userId", protectRoute, sendFriendRequest);
 
-// Search users by email route - FIXED: Added protectRoute
+// Search users by email route
 router.get('/search/email', protectRoute, async (req, res) => {
   try {
     const { email } = req.query;
@@ -121,20 +124,20 @@ router.get('/search/email', protectRoute, async (req, res) => {
   }
 });
 
-// Friend request routes - FIXED: Added protectRoute
+// Friend request routes
 router.post("/friend-request/:userId", protectRoute, sendFriendRequest);
 
-// Block/Unblock routes - FIXED: Added protectRoute
+// Block/Unblock routes
 router.put("/block/:userId", protectRoute, blockUser);
 router.put("/unblock/:userId", protectRoute, unblockUser);
 
-// Media routes - FIXED: Added protectRoute
+// Media routes
 router.get("/media/:userId", protectRoute, getUserMedia);
 
-// Account management - FIXED: Added protectRoute
+// Account management
 router.delete("/account", protectRoute, deleteAccount);
 
-// Friends sidebar route - FIXED: Added protectRoute
+// Friends sidebar route
 router.get('/friends/sidebar', protectRoute, async (req, res) => {
   try {
     const currentUser = await User.findById(req.user._id)

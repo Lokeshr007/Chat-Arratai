@@ -4,7 +4,10 @@ import axios from "axios";
 import toast from "react-hot-toast";
 import { io } from "socket.io-client";
 
+// Get backend URL from environment variables
 const backendUrl = import.meta.env.VITE_BACKEND_URL;
+
+// ✅ CORRECT: Set baseURL properly without quotes or semicolon
 axios.defaults.baseURL = backendUrl;
 
 export const AuthContext = createContext();
@@ -23,6 +26,45 @@ export const AuthProvider = ({ children }) => {
   const socketRef = useRef(null);
   const authCheckedRef = useRef(false);
 
+  // Enhanced API call function with proper URL handling
+  const apiCall = useCallback(async (method, endpoint, data = null, options = {}) => {
+    try {
+      // Ensure endpoint starts with /api
+      const url = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+      
+      const config = {
+        method,
+        url,
+        ...options
+      };
+
+      if (data) {
+        if (method.toLowerCase() === 'get') {
+          config.params = data;
+        } else {
+          config.data = data;
+        }
+      }
+
+      console.log(`🔍 API Call: ${method} ${url}`);
+      const response = await axios(config);
+      return response.data;
+    } catch (error) {
+      console.error(`❌ API Error (${method} ${endpoint}):`, error);
+      
+      // Enhanced error handling
+      if (error.response) {
+        console.error('Error response:', error.response.data);
+      } else if (error.request) {
+        console.error('No response received:', error.request);
+      } else {
+        console.error('Error:', error.message);
+      }
+      
+      throw error;
+    }
+  }, []);
+
   // Socket connection
   const connectSocket = useCallback((userData) => {
     if (!userData || (socketRef.current && socketRef.current.connected)) {
@@ -38,6 +80,7 @@ export const AuthProvider = ({ children }) => {
 
     console.log('🔌 Establishing socket connection for user:', userData._id);
 
+    // ✅ Use backendUrl directly for socket connection
     const newSocket = io(backendUrl, { 
       query: { userId: userData._id },
       transports: ['websocket', 'polling'],
@@ -59,6 +102,7 @@ export const AuthProvider = ({ children }) => {
     });
 
     newSocket.on("getOnlineUsers", (userIds) => {
+      console.log("👥 Online users:", userIds);
       setOnlineUsers(userIds);
     });
 
@@ -100,17 +144,26 @@ export const AuthProvider = ({ children }) => {
       });
     });
 
+    newSocket.on("userStatusChanged", (data) => {
+      console.log("🔄 User status changed:", data);
+    });
+
     newSocket.on("disconnect", (reason) => {
       console.log("🔌 Socket disconnected:", reason);
     });
 
-  socketRef.current = newSocket;
+    newSocket.on("connect_error", (error) => {
+      console.error("❌ Socket connection error:", error);
+      toast.error("Connection error. Please refresh the page.");
+    });
+
+    socketRef.current = newSocket;
   }, []);
 
   // Load friends list
   const loadFriends = async () => {
     try {
-      const { data } = await axios.get("/api/users/friends");
+      const data = await apiCall('get', 'api/users/friends');
       if (data.success) {
         setFriends(data.friends || []);
       }
@@ -122,7 +175,7 @@ export const AuthProvider = ({ children }) => {
   // Load pending friend requests
   const loadPendingRequests = async () => {
     try {
-      const { data } = await axios.get("/api/users/friend-requests/pending");
+      const data = await apiCall('get', 'api/users/friend-requests/pending');
       if (data.success) {
         setPendingRequests(data.pendingRequests || []);
       }
@@ -134,7 +187,7 @@ export const AuthProvider = ({ children }) => {
   // Load messages for a chat
   const loadMessages = useCallback(async (chatId) => {
     try {
-      const { data } = await axios.get(`/api/messages/${chatId}`);
+      const data = await apiCall('get', `api/messages/${chatId}`);
       if (data.success && data.messages) {
         setMessages(prev => {
           const newMessages = new Map(prev);
@@ -145,7 +198,7 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error("Failed to load messages:", error);
     }
-  }, []);
+  }, [apiCall]);
 
   // Send message
   const sendMessage = useCallback(async (receiverId, messageText) => {
@@ -164,7 +217,7 @@ export const AuthProvider = ({ children }) => {
         text: messageText,
         createdAt: new Date(),
         status: 'sending',
-        senderId: {
+        sender: {
           _id: authUser._id,
           fullName: authUser.fullName,
           profilePic: authUser.profilePic
@@ -179,7 +232,7 @@ export const AuthProvider = ({ children }) => {
       });
 
       // Send via API
-      const { data } = await axios.post(`/api/messages/send/${receiverId}`, {
+      const data = await apiCall('post', `api/messages/send/${receiverId}`, {
         text: messageText
       });
 
@@ -192,6 +245,14 @@ export const AuthProvider = ({ children }) => {
           newMessages.set(receiverId, [...filteredMessages, data.newMessage]);
           return newMessages;
         });
+
+        // Emit socket event for real-time delivery
+        if (socketRef.current) {
+          socketRef.current.emit("sendMessage", {
+            ...data.newMessage,
+            receiverId
+          });
+        }
 
         return data.newMessage._id;
       }
@@ -212,14 +273,14 @@ export const AuthProvider = ({ children }) => {
       
       return null;
     }
-  }, [authUser]);
+  }, [authUser, apiCall]);
 
   // Enhanced login function
   const login = async (credentials) => {
     try {
       setIsLoading(true);
       
-      const { data } = await axios.post(`/api/users/login`, credentials);
+      const data = await apiCall('post', 'api/users/login', credentials);
       
       if (data.success) {
         const userData = data.userData || data.user;
@@ -260,7 +321,7 @@ export const AuthProvider = ({ children }) => {
   const signup = async (credentials) => {
     try {
       setIsLoading(true);
-      const { data } = await axios.post('/api/users/signup', credentials);
+      const data = await apiCall('post', 'api/users/signup', credentials);
       
       if (data.success) {
         toast.success(data.message);
@@ -302,7 +363,6 @@ export const AuthProvider = ({ children }) => {
     if (socketRef.current) {
       socketRef.current.disconnect();
       socketRef.current = null;
-      setSocket(null);
     }
     
     toast.success("Logged out successfully");
@@ -323,7 +383,7 @@ export const AuthProvider = ({ children }) => {
       setToken(storedToken);
       axios.defaults.headers.common["Authorization"] = `Bearer ${storedToken}`;
       
-      const { data } = await axios.get("/api/users/check");
+      const data = await apiCall('get', 'api/users/check');
       
       if (data.success) {
         setAuthUser(data.user);
@@ -339,12 +399,12 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [logout, connectSocket]);
+  }, [logout, connectSocket, apiCall]);
 
   // Friend management functions
   const sendFriendRequestByEmail = async (email) => {
     try {
-      const { data } = await axios.post(`/api/users/friend-request/email`, { email });
+      const data = await apiCall('post', 'api/users/friend-request/email', { email });
       if (data.success) {
         toast.success("Friend request sent");
         
@@ -370,7 +430,7 @@ export const AuthProvider = ({ children }) => {
 
   const acceptFriendRequest = async (requestId) => {
     try {
-      const { data } = await axios.put(`/api/users/friend-request/accept/${requestId}`);
+      const data = await apiCall('put', `api/users/friend-request/accept/${requestId}`);
       if (data.success) {
         setAuthUser(data.user);
         toast.success("Friend request accepted");
@@ -399,7 +459,7 @@ export const AuthProvider = ({ children }) => {
 
   const rejectFriendRequest = async (requestId) => {
     try {
-      const { data } = await axios.put(`/api/users/friend-request/reject/${requestId}`);
+      const data = await apiCall('put', `api/users/friend-request/reject/${requestId}`);
       if (data.success) {
         setAuthUser(data.user);
         toast.success("Friend request rejected");
@@ -418,7 +478,7 @@ export const AuthProvider = ({ children }) => {
 
   const removeFriend = async (friendId) => {
     try {
-      const { data } = await axios.delete(`/api/users/friend/${friendId}`);
+      const data = await apiCall('delete', `api/users/friend/${friendId}`);
       if (data.success) {
         setAuthUser(data.user);
         toast.success("Friend removed");
@@ -438,7 +498,7 @@ export const AuthProvider = ({ children }) => {
   // Search users (only non-friends)
   const searchUsers = async (query) => {
     try {
-      const { data } = await axios.get(`/api/users/search?query=${encodeURIComponent(query)}`);
+      const data = await apiCall('get', `api/users/search?query=${encodeURIComponent(query)}`);
       if (data.success) {
         return data.users || [];
       }
@@ -452,7 +512,7 @@ export const AuthProvider = ({ children }) => {
   // Get users for sidebar (only friends)
   const getChatUsers = async () => {
     try {
-      const { data } = await axios.get("/api/messages/users");
+      const data = await apiCall('get', "api/messages/users");
       if (data.success) {
         return data.users || [];
       }
@@ -480,9 +540,52 @@ export const AuthProvider = ({ children }) => {
     setNotifications([]);
   };
 
+  // Test backend connection
+  const testBackendConnection = async () => {
+    try {
+      console.log('🔍 Testing backend connection to:', backendUrl);
+      const response = await axios.get('/api/status');
+      console.log('✅ Backend connection successful:', response.data);
+      return true;
+    } catch (error) {
+      console.error('❌ Backend connection failed:', error);
+      console.log('💡 Make sure your backend is running at:', backendUrl);
+      return false;
+    }
+  };
+
+  // Resend verification email with email parameter
+  const resendVerification = async (email) => {
+    try {
+      setIsLoading(true);
+      
+      const { data } = await axios.post('/api/users/resend-verification', { email });
+      
+      if (data.success) {
+        toast.success("Verification email sent! Please check your inbox.");
+        return { success: true, message: data.message };
+      } else {
+        toast.error(data.message);
+        return { success: false, message: data.message };
+      }
+    } catch (error) {
+      const errorMsg = error.response?.data?.message || "Failed to resend verification email";
+      console.error("Resend verification error:", error);
+      toast.error(errorMsg);
+      return { success: false, message: errorMsg };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Effects
   useEffect(() => {
-    checkAuth();
+    // Test connection first
+    testBackendConnection().then(success => {
+      if (success) {
+        checkAuth();
+      }
+    });
   }, [checkAuth]);
 
   useEffect(() => {
@@ -492,7 +595,7 @@ export const AuthProvider = ({ children }) => {
       }
     };
   }, []);
-
+  
   const value = {
     // Auth state
     api: axios,
@@ -526,6 +629,7 @@ export const AuthProvider = ({ children }) => {
     loadPendingRequests,
     searchUsers,
     getChatUsers,
+    resendVerification,
     
     // Notifications
     clearNotification,

@@ -4,9 +4,8 @@ import { generateToken } from "../lib/utils.js";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
 import bcrypt from "bcryptjs";
-import Group from "../models/Group.js"; // Missing in some files
+import Group from "../models/Group.js";
 
-// Enhanced email transporter with better configuration
 // Enhanced email configuration with better error handling
 const createTransporter = () => {
   return nodemailer.createTransport({
@@ -21,10 +20,9 @@ const createTransporter = () => {
     tls: {
       rejectUnauthorized: false
     },
-    connectionTimeout: 10000, // 10 seconds
-    socketTimeout: 15000, // 15 seconds
+    connectionTimeout: 10000,
+    socketTimeout: 15000,
     greetingTimeout: 10000,
-    // Add retry logic
     retries: 3,
     retryDelay: 1000
   });
@@ -47,9 +45,7 @@ const verifyEmailConfig = async (retries = 3) => {
         return false;
       }
       
-      // Wait before retry
       await new Promise(resolve => setTimeout(resolve, 2000));
-      // Recreate transporter for retry
       transporter = createTransporter();
     }
   }
@@ -60,7 +56,6 @@ verifyEmailConfig();
 
 // Safe email sending function
 export const sendEmailSafe = async (mailOptions, maxRetries = 2) => {
-  // Skip email in development if not configured
   if (process.env.NODE_ENV === 'development' && !process.env.EMAIL_USER) {
     console.log('📧 Email disabled in development - no EMAIL_USER configured');
     return { success: true, skipped: true };
@@ -87,7 +82,6 @@ export const sendEmailSafe = async (mailOptions, maxRetries = 2) => {
         };
       }
       
-      // Recreate transporter and wait before retry
       transporter = createTransporter();
       await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
     }
@@ -138,7 +132,7 @@ export const signup = async (req, res) => {
 
     // Generate verification token with expiry (24 hours)
     const verificationToken = crypto.randomBytes(32).toString('hex');
-    const verificationTokenExpiry = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
+    const verificationTokenExpiry = Date.now() + 24 * 60 * 60 * 1000;
 
     // Create user
     const user = await User.create({
@@ -151,8 +145,11 @@ export const signup = async (req, res) => {
     });
 
     // Send verification email
-    const verificationUrl = `${process.env.CLIENT_URL}/verify-email?token=${verificationToken}`;
-    
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    const verificationUrl = `${clientUrl}/verify-email?token=${verificationToken}`;
+
+    console.log('🔗 Generated verification URL:', verificationUrl);
+
     const mailOptions = {
       from: `"ChatApp" <${process.env.EMAIL_USER}>`,
       to: email,
@@ -169,8 +166,10 @@ export const signup = async (req, res) => {
             </a>
           </div>
           <p>Or copy and paste this link in your browser:</p>
-          <p style="word-break: break-all; color: #666;">${verificationUrl}</p>
-          <p>This verification link will expire in 24 hours.</p>
+          <p style="word-break: break-all; color: #666;">
+            <a href="${verificationUrl}">${verificationUrl}</a>
+          </p>
+          <p><strong>This verification link will expire in 24 hours.</strong></p>
           <p>If you didn't create an account, please ignore this email.</p>
           <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
           <p style="color: #666; font-size: 12px;">
@@ -180,12 +179,12 @@ export const signup = async (req, res) => {
       `
     };
 
-   const emailResult = await sendEmailSafe(mailOptions);
-if (emailResult.success && !emailResult.skipped) {
-  console.log(`✅ Verification email sent to: ${email}`);
-} else if (emailResult.skipped) {
-  console.log(`📧 Email verification skipped for: ${email}`);
-}
+    const emailResult = await sendEmailSafe(mailOptions);
+    if (emailResult.success && !emailResult.skipped) {
+      console.log(`✅ Verification email sent to: ${email}`);
+    } else if (emailResult.skipped) {
+      console.log(`📧 Email verification skipped for: ${email}`);
+    }
 
     res.status(201).json({
       success: true,
@@ -341,7 +340,6 @@ export const resendVerification = async (req, res) => {
 
     const user = await User.findOne({ email });
     if (!user) {
-      // Don't reveal if email exists or not
       return res.json({
         success: true,
         message: "If the email exists, a new verification link has been sent"
@@ -357,15 +355,18 @@ export const resendVerification = async (req, res) => {
 
     // Generate new verification token
     const verificationToken = crypto.randomBytes(32).toString('hex');
-    const verificationTokenExpiry = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
+    const verificationTokenExpiry = Date.now() + 24 * 60 * 60 * 1000;
 
     user.verificationToken = verificationToken;
     user.verificationTokenExpiry = verificationTokenExpiry;
     await user.save();
 
     // Send verification email
-    const verificationUrl = `${process.env.CLIENT_URL}/verify-email?token=${verificationToken}`;
-    
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    const verificationUrl = `${clientUrl}/verify-email?token=${verificationToken}`;
+
+    console.log('🔗 Generated resend verification URL:', verificationUrl);
+
     const mailOptions = {
       from: `"ChatApp" <${process.env.EMAIL_USER}>`,
       to: email,
@@ -381,17 +382,21 @@ export const resendVerification = async (req, res) => {
               Verify Email Address
             </a>
           </div>
-          <p>This link will expire in 24 hours.</p>
+          <p>Or copy and paste this link in your browser:</p>
+          <p style="word-break: break-all; color: #666;">
+            <a href="${verificationUrl}">${verificationUrl}</a>
+          </p>
+          <p><strong>This link will expire in 24 hours.</strong></p>
           <p>If you didn't request this, please ignore this email.</p>
         </div>
       `
     };
 
-    try {
-      await transporter.sendMail(mailOptions);
+    const emailResult = await sendEmailSafe(mailOptions);
+    if (emailResult.success && !emailResult.skipped) {
       console.log(`✅ Resent verification email to: ${email}`);
-    } catch (emailError) {
-      console.error("❌ Email sending error:", emailError);
+    } else if (emailResult.skipped) {
+      console.log(`📧 Email resend skipped for: ${email}`);
     }
 
     res.json({
@@ -407,6 +412,95 @@ export const resendVerification = async (req, res) => {
     });
   }
 };
+
+// Resend verification email with email parameter
+export const resendVerificationEmail = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is required"
+      });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.json({
+        success: true,
+        message: "If an account exists with this email, a new verification link has been sent"
+      });
+    }
+
+    if (user.emailVerified) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is already verified"
+      });
+    }
+
+    // Generate new verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationTokenExpiry = Date.now() + 24 * 60 * 60 * 1000;
+
+    user.verificationToken = verificationToken;
+    user.verificationTokenExpiry = verificationTokenExpiry;
+    await user.save();
+
+    // Send verification email with correct URL
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    const verificationUrl = `${clientUrl}/verify-email?token=${verificationToken}`;
+
+    console.log('🔗 Resent verification URL:', verificationUrl);
+
+    const mailOptions = {
+      from: `"ChatApp" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: 'Verify Your Email - ChatApp',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #7c3aed;">Verify Your Email</h2>
+          <p>Hello ${user.fullName},</p>
+          <p>You requested a new verification link. Click the button below to verify your email:</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${verificationUrl}" 
+               style="background: #7c3aed; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">
+              Verify Email Address
+            </a>
+          </div>
+          <p>Or copy and paste this link in your browser:</p>
+          <p style="word-break: break-all; color: #666;">
+            <a href="${verificationUrl}">${verificationUrl}</a>
+          </p>
+          <p><strong>This link will expire in 24 hours.</strong></p>
+          <p>If you didn't request this, please ignore this email.</p>
+        </div>
+      `
+    };
+
+    const emailResult = await sendEmailSafe(mailOptions);
+    
+    if (emailResult.success && !emailResult.skipped) {
+      console.log(`✅ Resent verification email to: ${email}`);
+    } else if (emailResult.skipped) {
+      console.log(`📧 Email resend skipped for: ${email}`);
+    }
+
+    res.json({
+      success: true,
+      message: "New verification link sent to your email"
+    });
+
+  } catch (error) {
+    console.error("Resend verification email error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error"
+    });
+  }
+};
+
 export const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
@@ -420,7 +514,6 @@ export const forgotPassword = async (req, res) => {
 
     const user = await User.findOne({ email });
     if (!user) {
-      // Don't reveal if email exists or not
       return res.json({
         success: true,
         message: "If the email exists, a reset link has been sent"
@@ -429,7 +522,7 @@ export const forgotPassword = async (req, res) => {
 
     // Generate reset token
     const resetToken = crypto.randomBytes(32).toString('hex');
-    const resetTokenExpiry = Date.now() + 3600000; // 1 hour
+    const resetTokenExpiry = Date.now() + 3600000;
 
     user.resetToken = resetToken;
     user.resetTokenExpiry = resetTokenExpiry;
@@ -438,24 +531,22 @@ export const forgotPassword = async (req, res) => {
     // Send reset email
     const resetUrl = `${process.env.CLIENT_URL}/reset-password?token=${resetToken}`;
     
-    try {
-      await transporter.sendMail({
-        from: process.env.EMAIL_USER,
-        to: email,
-        subject: 'Reset Your Password - ChatApp',
-        html: `
-          <h2>Password Reset Request</h2>
-          <p>Click the link below to reset your password:</p>
-          <a href="${resetUrl}" style="background:#7c3aed;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;">
-            Reset Password
-          </a>
-          <p>This link will expire in 1 hour.</p>
-          <p>If you didn't request this, please ignore this email.</p>
-        `
-      });
-    } catch (emailError) {
-      console.error("Email sending error:", emailError);
-    }
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: 'Reset Your Password - ChatApp',
+      html: `
+        <h2>Password Reset Request</h2>
+        <p>Click the link below to reset your password:</p>
+        <a href="${resetUrl}" style="background:#7c3aed;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;">
+          Reset Password
+        </a>
+        <p>This link will expire in 1 hour.</p>
+        <p>If you didn't request this, please ignore this email.</p>
+      `
+    };
+
+    await sendEmailSafe(mailOptions);
 
     res.json({
       success: true,
@@ -734,8 +825,7 @@ export const getUserMedia = async (req, res) => {
     }
 
     // In a real implementation, you would query messages for media
-    // This is a simplified version
-    const media = []; // You would populate this from messages
+    const media = [];
 
     res.json({
       success: true,
@@ -804,12 +894,25 @@ export const deleteAccount = async (req, res) => {
   }
 };
 
-// Email verification
 // Send Friend Request
+// Send Friend Request - COMPLETELY FIXED VERSION
 export const sendFriendRequest = async (req, res) => {
   try {
     const { userId } = req.params;
     const currentUserId = req.user._id;
+
+    console.log('📥 Received friend request:', { 
+      from: currentUserId, 
+      to: userId 
+    });
+
+    // Validate input
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: "User ID is required"
+      });
+    }
 
     if (userId === currentUserId.toString()) {
       return res.status(400).json({
@@ -818,6 +921,7 @@ export const sendFriendRequest = async (req, res) => {
       });
     }
 
+    // Find both users
     const [currentUser, targetUser] = await Promise.all([
       User.findById(currentUserId),
       User.findById(userId)
@@ -830,30 +934,14 @@ export const sendFriendRequest = async (req, res) => {
       });
     }
 
-    // Check privacy settings
-    if (targetUser.privacySettings.friendRequests === 'nobody') {
-      return res.status(403).json({
+    if (!currentUser) {
+      return res.status(404).json({
         success: false,
-        message: "This user is not accepting friend requests"
+        message: "Current user not found"
       });
     }
 
-    if (targetUser.privacySettings.friendRequests === 'friends_of_friends') {
-      const mutualFriends = currentUser.friends.some(friend1 => 
-        targetUser.friends.some(friend2 => 
-          friend1.user.toString() === friend2.user.toString()
-        )
-      );
-      
-      if (!mutualFriends) {
-        return res.status(403).json({
-          success: false,
-          message: "This user only accepts friend requests from friends of friends"
-        });
-      }
-    }
-
-    // Check if already friends
+    // Check if already friends using the helper method
     if (currentUser.isFriend(userId)) {
       return res.status(400).json({
         success: false,
@@ -861,11 +949,27 @@ export const sendFriendRequest = async (req, res) => {
       });
     }
 
-    // Check if request already exists
-    if (targetUser.hasPendingRequest(currentUserId)) {
+    // Check if request already exists (sent by current user to target)
+    const hasPendingRequest = targetUser.friendRequests.some(
+      req => req.from.toString() === currentUserId.toString() && req.status === 'pending'
+    );
+    
+    if (hasPendingRequest) {
       return res.status(400).json({
         success: false,
         message: "Friend request already sent"
+      });
+    }
+
+    // Check if target user has already sent a request to current user
+    const hasReceivedRequest = currentUser.friendRequests.some(
+      req => req.from.toString() === userId && req.status === 'pending'
+    );
+
+    if (hasReceivedRequest) {
+      return res.status(400).json({
+        success: false,
+        message: "This user has already sent you a friend request. Please check your pending requests."
       });
     }
 
@@ -878,27 +982,89 @@ export const sendFriendRequest = async (req, res) => {
       });
     }
 
-    // Add friend request to target user
-    targetUser.friendRequests.push({
+    // Check privacy settings
+    const privacy = targetUser.privacySettings || {};
+    
+    if (privacy.friendRequests === 'nobody') {
+      return res.status(403).json({
+        success: false,
+        message: "This user is not accepting friend requests"
+      });
+    }
+
+    if (privacy.friendRequests === 'friends_of_friends') {
+      // Check if they have mutual friends
+      const currentUserFriendIds = currentUser.friends.map(f => f.user.toString());
+      const targetUserFriendIds = targetUser.friends.map(f => f.user.toString());
+      
+      const mutualFriends = currentUserFriendIds.some(friendId => 
+        targetUserFriendIds.includes(friendId)
+      );
+      
+      if (!mutualFriends) {
+        return res.status(403).json({
+          success: false,
+          message: "This user only accepts friend requests from friends of friends"
+        });
+      }
+    }
+
+    console.log('✅ All checks passed, creating friend request...');
+
+    // Create friend request object
+    const friendRequest = {
       from: currentUserId,
-      status: 'pending'
-    });
+      status: 'pending',
+      createdAt: new Date()
+    };
+
+    const sentRequest = {
+      to: userId,
+      status: 'pending',
+      createdAt: new Date()
+    };
+
+    // Add friend request to target user
+    targetUser.friendRequests.push(friendRequest);
 
     // Add sent request to current user
-    currentUser.sentFriendRequests.push({
-      to: userId,
-      status: 'pending'
-    });
+    currentUser.sentFriendRequests.push(sentRequest);
 
     await Promise.all([currentUser.save(), targetUser.save()]);
 
+    console.log('✅ Friend request saved successfully');
+
+    // Get the actual request ID that was created
+    const savedRequest = targetUser.friendRequests[targetUser.friendRequests.length - 1];
+
+    // Emit socket event if socket is available
+    try {
+      if (req.io) {
+        req.io.to(targetUser._id.toString()).emit('friendRequestReceived', {
+          fromUser: {
+            _id: currentUser._id,
+            fullName: currentUser.fullName,
+            username: currentUser.username,
+            profilePic: currentUser.profilePic
+          },
+          requestId: savedRequest._id,
+          timestamp: new Date()
+        });
+        console.log('📡 Socket event emitted to target user');
+      }
+    } catch (socketError) {
+      console.warn('⚠️ Could not emit socket event:', socketError);
+      // Continue anyway - socket is optional
+    }
+
     res.json({
       success: true,
-      message: "Friend request sent successfully"
+      message: "Friend request sent successfully",
+      requestId: savedRequest._id
     });
 
   } catch (error) {
-    console.error("Send friend request error:", error);
+    console.error("❌ Send friend request error:", error);
     res.status(500).json({
       success: false,
       message: "Internal server error"
@@ -906,21 +1072,18 @@ export const sendFriendRequest = async (req, res) => {
   }
 };
 
-
-
-
 // Remove Friend
 export const removeFriend = async (req, res) => {
   try {
-    const { userId } = req.params;
+    const { friendId } = req.params;
     const currentUserId = req.user._id;
 
-    const [currentUser, otherUser] = await Promise.all([
+    const [currentUser, friendUser] = await Promise.all([
       User.findById(currentUserId),
-      User.findById(userId)
+      User.findById(friendId)
     ]);
 
-    if (!otherUser) {
+    if (!friendUser) {
       return res.status(404).json({
         success: false,
         message: "User not found"
@@ -929,14 +1092,14 @@ export const removeFriend = async (req, res) => {
 
     // Remove from friends list
     currentUser.friends = currentUser.friends.filter(
-      friend => friend.user.toString() !== userId
+      friend => friend.user.toString() !== friendId
     );
 
-    otherUser.friends = otherUser.friends.filter(
+    friendUser.friends = friendUser.friends.filter(
       friend => friend.user.toString() !== currentUserId.toString()
     );
 
-    await Promise.all([currentUser.save(), otherUser.save()]);
+    await Promise.all([currentUser.save(), friendUser.save()]);
 
     res.json({
       success: true,
@@ -953,11 +1116,13 @@ export const removeFriend = async (req, res) => {
 };
 
 // Get Friends List
+// Get Friends List - UPDATED VERSION
 export const getFriends = async (req, res) => {
   try {
     const currentUser = await User.findById(req.user._id)
-      .populate('friends.user', 'fullName username profilePic lastSeen')
-      .populate('friendRequests.from', 'fullName username profilePic');
+      .populate('friends.user', 'fullName username profilePic lastSeen email')
+      .populate('friendRequests.from', 'fullName username profilePic email')
+      .populate('sentFriendRequests.to', 'fullName username profilePic email');
 
     const friends = currentUser.friends.map(friend => ({
       ...friend.user.toObject(),
@@ -967,13 +1132,25 @@ export const getFriends = async (req, res) => {
 
     const pendingRequests = currentUser.friendRequests
       .filter(req => req.status === 'pending')
-      .map(req => req.from);
+      .map(req => ({
+        _id: req._id,
+        from: req.from,
+        createdAt: req.createdAt
+      }));
+
+    const sentRequests = currentUser.sentFriendRequests
+      .filter(req => req.status === 'pending')
+      .map(req => ({
+        _id: req._id,
+        to: req.to,
+        createdAt: req.createdAt
+      }));
 
     res.json({
       success: true,
       friends,
       pendingRequests,
-      sentRequests: currentUser.sentFriendRequests
+      sentRequests
     });
 
   } catch (error) {
@@ -985,7 +1162,6 @@ export const getFriends = async (req, res) => {
   }
 };
 
-// Search Users with Privacy
 // Updated searchUsers to show users for friend requests
 export const searchUsers = async (req, res) => {
   try {
@@ -1060,6 +1236,7 @@ export const searchUsers = async (req, res) => {
     });
   }
 };
+
 // Get User Profile with Privacy
 export const getUserProfile = async (req, res) => {
   try {

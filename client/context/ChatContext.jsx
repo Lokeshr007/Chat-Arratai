@@ -44,24 +44,91 @@ export const ChatProvider = ({ children }) => {
   const messageCacheRef = useRef(new Map());
   const isGroup = selectedUser?.members;
 
-  // Enhanced message caching system
+  // ========== UTILITY FUNCTIONS ==========
+  
+  const getFileType = (url) => {
+    if (!url || typeof url !== 'string') return 'other';
+    
+    const extension = url.split('.').pop()?.toLowerCase() || '';
+    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'];
+    const docExtensions = ['pdf', 'doc', 'docx', 'txt', 'zip', 'rar', 'xls', 'xlsx', 'ppt', 'pptx'];
+    const audioExtensions = ['mp3', 'wav', 'ogg', 'm4a'];
+    const videoExtensions = ['mp4', 'avi', 'mov', 'wmv'];
+    
+    if (imageExtensions.includes(extension)) return 'image';
+    if (docExtensions.includes(extension)) return 'document';
+    if (audioExtensions.includes(extension)) return 'audio';
+    if (videoExtensions.includes(extension)) return 'video';
+    return 'other';
+  };
+
+  const getFileIcon = (filename) => {
+    const extension = filename.split('.').pop()?.toLowerCase();
+    switch (extension) {
+      case 'pdf':
+        return '📄';
+      case 'doc':
+      case 'docx':
+        return '📝';
+      case 'xls':
+      case 'xlsx':
+        return '📊';
+      case 'zip':
+      case 'rar':
+        return '📦';
+      case 'txt':
+        return '📃';
+      case 'mp3':
+      case 'wav':
+      case 'ogg':
+        return '🎵';
+      case 'mp4':
+      case 'avi':
+      case 'mov':
+        return '🎥';
+      default:
+        return '📎';
+    }
+  };
+
+  const downloadFile = async (url, filename) => {
+    try {
+      toast.loading('Downloading file...');
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+      toast.dismiss();
+      toast.success('File downloaded successfully');
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.dismiss();
+      toast.error('Failed to download file');
+    }
+  };
+
+  // ========== CACHE FUNCTIONS ==========
+
   const getCachedMessages = useCallback((chatId) => {
     if (!chatId) return null;
     
-    // Try memory cache first
     const memoryCache = messageCacheRef.current.get(`chat-${chatId}`);
     if (memoryCache) {
       console.log('📦 Using memory cached messages:', memoryCache.length);
       return memoryCache;
     }
     
-    // Fallback to localStorage
     try {
       const stored = localStorage.getItem(`chat-messages-${chatId}`);
       if (stored) {
         const parsedMessages = JSON.parse(stored);
         console.log('💾 Using localStorage cached messages:', parsedMessages.length);
-        // Update memory cache
         messageCacheRef.current.set(`chat-${chatId}`, parsedMessages);
         return parsedMessages;
       }
@@ -75,10 +142,8 @@ export const ChatProvider = ({ children }) => {
   const setCachedMessages = useCallback((chatId, messages) => {
     if (!chatId || !messages) return;
     
-    // Update memory cache
     messageCacheRef.current.set(`chat-${chatId}`, messages);
     
-    // Update localStorage
     try {
       localStorage.setItem(`chat-messages-${chatId}`, JSON.stringify(messages));
       console.log('💾 Saved messages to cache:', messages.length);
@@ -90,10 +155,8 @@ export const ChatProvider = ({ children }) => {
   const clearCachedMessages = useCallback((chatId) => {
     if (!chatId) return;
     
-    // Clear memory cache
     messageCacheRef.current.delete(`chat-${chatId}`);
     
-    // Clear localStorage
     try {
       localStorage.removeItem(`chat-messages-${chatId}`);
     } catch (error) {
@@ -101,135 +164,8 @@ export const ChatProvider = ({ children }) => {
     }
   }, []);
 
-// In ChatContext.jsx - Update the clearChatPermanently function
-// In ChatContext.jsx - Update clearChatPermanently
-const clearChatPermanently = useCallback(async (chatId) => {
-    if (!chatId || !authUser) {
-        console.log('❌ Missing chatId or authUser');
-        return false;
-    }
+  // ========== PRIVACY & HELPER FUNCTIONS ==========
 
-    try {
-        console.log('🔍 FRONTEND - Clear Chat Called (User-specific):');
-        console.log('   - Chat ID:', chatId);
-        console.log('   - Auth User ID:', authUser._id);
-        
-        const endpoint = `/api/messages/clear/${chatId}`;
-        console.log('   - Calling endpoint:', endpoint);
-
-        const { data } = await api.delete(endpoint);
-        
-        console.log('   - Backend response:', data);
-        
-        if (data.success) {
-            console.log(`✅ CHAT CLEARED SUCCESS - Cleared ${data.deletedCount} messages for current user only`);
-            
-            // Only clear local messages if this is the currently selected chat
-            if (selectedUser?._id === chatId) {
-                setMessages([]);
-            }
-            
-            // Clear cached messages for this user only
-            clearCachedMessages(chatId);
-            
-            toast.success(`Chat cleared (${data.deletedCount} messages removed from your view)`);
-            return true;
-        } else {
-            console.log('❌ Backend returned success: false');
-            throw new Error(data.message);
-        }
-    } catch (error) {
-        console.error('❌ FRONTEND - Clear chat error:', error);
-        console.error('   - Error response:', error.response?.data);
-        toast.error(error.response?.data?.message || "Failed to clear chat");
-        return false;
-    }
-}, [api, authUser, clearCachedMessages, selectedUser]);
-  // Enhanced message deletion
-  const deleteMessageById = async (messageId, deleteForEveryone = false) => {
-    if (!messageId) return;
-    
-    try {
-      const endpoint = deleteForEveryone 
-        ? `/api/messages/delete/${messageId}?forEveryone=true`
-        : `/api/messages/delete/${messageId}`;
-      
-      const { data } = await api.delete(endpoint);
-      
-      if (data.success) {
-        if (socket) {
-          const message = messages.find(msg => msg._id === messageId);
-          if (message) {
-            socket.emit("messageDeleted", {
-              messageId,
-              chatId: selectedUser._id,
-              receiverType: message.receiverType,
-              deleteForEveryone
-            });
-          }
-        }
-        
-        // Update cache
-        if (selectedUser?._id) {
-          const currentMessages = getCachedMessages(selectedUser._id) || [];
-          const updatedMessages = currentMessages.filter(msg => msg._id !== messageId);
-          setCachedMessages(selectedUser._id, updatedMessages);
-        }
-        
-        toast.success(deleteForEveryone ? "Message deleted for everyone" : "Message deleted");
-        return { success: true };
-      } else {
-        toast.error(data.message);
-        return { success: false, error: data.message };
-      }
-    } catch (err) {
-      console.error("Delete message error:", err);
-      
-      if (err.response?.status === 403) {
-        toast.error("You are not authorized to delete this message");
-        return { success: false, error: "Not authorized" };
-      } else if (err.response?.status === 404) {
-        toast.error("Message not found");
-        return { success: false, error: "Message not found" };
-      } else {
-        toast.error(err.response?.data?.message || "Failed to delete message");
-        return { success: false, error: "Delete failed" };
-      }
-    }
-  };
-
-  // Pinned messages functionality
-  const pinMessage = useCallback(async (messageId) => {
-    try {
-      const { data } = await api.post(`/api/messages/${messageId}/pin`);
-      if (data.success) {
-        setPinnedMessages(prev => [...prev, data.pinnedMessage]);
-        toast.success("Message pinned");
-        return true;
-      }
-    } catch (error) {
-      console.error("Pin message error:", error);
-      toast.error("Failed to pin message");
-      return false;
-    }
-  }, [api]);
-
-  const unpinMessage = useCallback(async (messageId) => {
-    try {
-      const { data } = await api.delete(`/api/messages/${messageId}/pin`);
-      if (data.success) {
-        setPinnedMessages(prev => prev.filter(msg => msg._id !== messageId));
-        toast.success("Message unpinned");
-        return true;
-      }
-    } catch (error) {
-      console.error("Unpin message error:", error);
-      toast.error("Failed to unpin message");
-      return false;
-    }
-  }, [api]);
-
-  // Privacy helper functions
   const canViewUserProfile = useCallback((user) => {
     if (!user) return false;
     if (user._id === authUser?._id) return true;
@@ -254,17 +190,20 @@ const clearChatPermanently = useCallback(async (chatId) => {
     
     const privacy = user.privacySettings || {};
     
-    // Check if user has blocked us
     if (user.blockedUsers?.includes(authUser?._id)) return false;
     
-    // FRIENDS ONLY: Only allow messaging if they are friends
     const isFriend = friends.some(friend => friend._id === user._id);
-    if (!isFriend) return false;
+    const hasPendingRequest = sentRequests.some(req => 
+      (req.to?._id === user._id || req.to === user._id) && req.status === 'pending'
+    ) || friendRequests.some(req => 
+      (req.from?._id === user._id || req.from === user._id) && req.status === 'pending'
+    );
     
-    // Check message receiving preferences (only for friends now)
+    if (!isFriend && !hasPendingRequest) return false;
+    
     switch (privacy.messageReceiving) {
       case 'everyone':
-        return isFriend;
+        return true;
       case 'friends':
         return isFriend;
       case 'nobody':
@@ -272,34 +211,74 @@ const clearChatPermanently = useCallback(async (chatId) => {
       default:
         return isFriend;
     }
-  }, [authUser, friends]);
+  }, [authUser, friends, sentRequests, friendRequests]);
 
+  // FIXED: Enhanced canSendFriendRequest with better debugging
   const canSendFriendRequest = useCallback((user) => {
-    if (!user) return false;
-    if (user._id === authUser?._id) return false;
+    if (!user) {
+      console.log('❌ canSendFriendRequest: No user provided');
+      return false;
+    }
+    if (user._id === authUser?._id) {
+      console.log('❌ canSendFriendRequest: Cannot send to self');
+      return false;
+    }
     
     const privacy = user.privacySettings || {};
     const isFriend = friends.some(friend => friend._id === user._id);
     
-    // Can't send request if already friends
-    if (isFriend) return false;
+    console.log('🔍 canSendFriendRequest debug:');
+    console.log('  - User:', user.fullName);
+    console.log('  - Is friend:', isFriend);
+    console.log('  - Privacy settings:', privacy);
+    console.log('  - Friend requests setting:', privacy.friendRequests);
+    
+    if (isFriend) {
+      console.log('❌ canSendFriendRequest: Already friends');
+      return false;
+    }
+    
+    const hasPendingRequest = sentRequests.some(req => {
+      const toUserId = req.to?._id || req.to;
+      return toUserId === user._id && req.status === 'pending';
+    });
+    
+    if (hasPendingRequest) {
+      console.log('❌ canSendFriendRequest: Request already sent');
+      return false;
+    }
+    
+    const hasReceivedRequest = friendRequests.some(req => {
+      const fromUserId = req.from?._id || req.from;
+      return fromUserId === user._id && req.status === 'pending';
+    });
+    
+    if (hasReceivedRequest) {
+      console.log('❌ canSendFriendRequest: Request already received');
+      return false;
+    }
     
     switch (privacy.friendRequests) {
       case 'everyone':
+        console.log('✅ canSendFriendRequest: Everyone allowed');
         return true;
       case 'friends_of_friends':
         const mutualFriends = friends.some(friend1 => 
           user.friends?.some(friend2 => friend1._id === friend2._id)
         );
+        console.log('🔍 canSendFriendRequest: Friends of friends - mutual friends:', mutualFriends);
         return mutualFriends;
       case 'nobody':
+        console.log('❌ canSendFriendRequest: Nobody allowed');
         return false;
       default:
+        console.log('✅ canSendFriendRequest: Default case - allowing');
         return true;
     }
-  }, [authUser, friends]);
+  }, [authUser, friends, sentRequests, friendRequests]);
 
-  // Search history management
+  // ========== SEARCH & HISTORY MANAGEMENT ==========
+
   const addToSearchHistory = useCallback((query, results = []) => {
     if (!query.trim()) return;
     
@@ -318,7 +297,6 @@ const clearChatPermanently = useCallback(async (chatId) => {
     setSearchHistory([]);
   }, []);
 
-  // Recent chats management
   const addToRecentChats = useCallback((chat) => {
     if (!chat) return;
     
@@ -340,133 +318,24 @@ const clearChatPermanently = useCallback(async (chatId) => {
     setRecentChats([]);
   }, []);
 
-  // Friend system functions
-  const getFriends = useCallback(async (retryCount = 0) => {
-    if (!authUser || !api) return;
-    
-    try {
-      console.log('📞 Fetching friends...');
-      const { data } = await api.get("/api/users/friends");
-      
-      if (data.success) {
-        console.log('✅ Friends loaded:', data.friends?.length || 0);
-        setFriends(data.friends || []);
-        setFriendRequests(data.pendingRequests || []);
-        setSentRequests(data.sentRequests || []);
-        return data.friends;
-      } else {
-        throw new Error(data.message || 'Failed to load friends');
-      }
-    } catch (error) {
-      console.error("❌ Get friends error:", error);
-      
-      if (retryCount < 2) {
-        console.log(`🔄 Retrying friends fetch (${retryCount + 1}/2)...`);
-        setTimeout(() => getFriends(retryCount + 1), 1000 * (retryCount + 1));
-      } else {
-        console.warn('⚠️ Using empty friends list as fallback');
-        setFriends([]);
-        setFriendRequests([]);
-        setSentRequests([]);
-        toast.error("Failed to load friends list");
-      }
-      return [];
+  // ========== USER MANAGEMENT ==========
+// In ChatContext, update the getUsers function to get ALL users:
+// In ChatContext, update getUsers to get ALL users:
+const getUsers = useCallback(async () => {
+  try {
+    const { data } = await api.get("/api/messages/users");
+    if (data.success) {
+      // FIXED: Show ALL users, not just friends
+      // This ensures searched users are available for friend requests
+      setUsers(data.users || []);
+      setUnseenMessages(data.unseenMessages || {});
+      setBlockedUsers(data.blockedUsers || []);
     }
-  }, [api, authUser]);
-
-  const sendFriendRequest = useCallback(async (userId) => {
-    try {
-      const userToAdd = users.find(u => u._id === userId);
-      if (!userToAdd) {
-        toast.error("User not found");
-        return false;
-      }
-
-      if (!canSendFriendRequest(userToAdd)) {
-        toast.error("This user is not accepting friend requests");
-        return false;
-      }
-
-      const { data } = await api.post(`/api/users/friend-request/${userId}`);
-      if (data.success) {
-        toast.success("Friend request sent successfully");
-        await getFriends();
-        return true;
-      } else {
-        toast.error(data.message);
-        return false;
-      }
-    } catch (error) {
-      console.error("Send friend request error:", error);
-      toast.error(error.response?.data?.message || "Failed to send friend request");
-      return false;
-    }
-  }, [api, getFriends, users, canSendFriendRequest]);
-
-  const acceptFriendRequest = useCallback(async (requestId) => {
-    try {
-      const { data } = await api.put(`/api/users/friend-request/accept/${requestId}`);
-      if (data.success) {
-        toast.success("Friend request accepted");
-        await getFriends();
-        return true;
-      }
-    } catch (error) {
-      console.error("Accept friend request error:", error);
-      toast.error(error.response?.data?.message || "Failed to accept friend request");
-      return false;
-    }
-  }, [api, getFriends]);
-
-  const rejectFriendRequest = useCallback(async (requestId) => {
-    try {
-      const { data } = await api.put(`/api/users/friend-request/reject/${requestId}`);
-      if (data.success) {
-        toast.success("Friend request rejected");
-        await getFriends();
-        return true;
-      }
-    } catch (error) {
-      console.error("Reject friend request error:", error);
-      toast.error(error.response?.data?.message || "Failed to reject friend request");
-      return false;
-    }
-  }, [api, getFriends]);
-
-  const removeFriend = useCallback(async (userId) => {
-    try {
-      const { data } = await api.delete(`/api/users/friend/${userId}`);
-      if (data.success) {
-        toast.success("Friend removed successfully");
-        await getFriends();
-        return true;
-      }
-    } catch (error) {
-      console.error("Remove friend error:", error);
-      toast.error(error.response?.data?.message || "Failed to remove friend");
-      return false;
-    }
-  }, [api, getFriends]);
-
-  // User management
-  const getUsers = useCallback(async () => {
-    try {
-      const { data } = await api.get("/api/messages/users");
-      if (data.success) {
-        const filteredUsers = data.users.filter(user => 
-          (canViewUserProfile(user) && friends.some(friend => friend._id === user._id)) || 
-          user._id === authUser?._id
-        );
-        
-        setUsers(filteredUsers);
-        setUnseenMessages(data.unseenMessages || {});
-        setBlockedUsers(data.blockedUsers || []);
-      }
-    } catch (error) {
-      console.error("Get users error:", error);
-      toast.error("Failed to load users");
-    }
-  }, [api, authUser, canViewUserProfile, friends]);
+  } catch (error) {
+    console.error("Get users error:", error);
+    toast.error("Failed to load users");
+  }
+}, [api, authUser]); // Remove friends dependency // Removed friends dependency since we're not filtering anymore
 
   const searchUsers = useCallback(async (query) => {
     try {
@@ -544,7 +413,237 @@ const clearChatPermanently = useCallback(async (chatId) => {
     }
   }, [searchUsers, searchUsersByEmail]);
 
-  // Group management
+  // ========== FRIEND SYSTEM ==========
+
+  const getFriends = useCallback(async (retryCount = 0) => {
+    if (!authUser || !api) return;
+    
+    try {
+      console.log('📞 Fetching friends...');
+      const { data } = await api.get("/api/users/friends");
+      
+      if (data.success) {
+        console.log('✅ Friends loaded:', data.friends?.length || 0);
+        console.log('📥 Friend requests:', data.pendingRequests?.length || 0);
+        console.log('📤 Sent requests:', data.sentRequests?.length || 0);
+        
+        setFriends(data.friends || []);
+        setFriendRequests(data.pendingRequests || []);
+        setSentRequests(data.sentRequests || []);
+        return data.friends;
+      } else {
+        throw new Error(data.message || 'Failed to load friends');
+      }
+    } catch (error) {
+      console.error("❌ Get friends error:", error);
+      
+      if (retryCount < 2) {
+        console.log(`🔄 Retrying friends fetch (${retryCount + 1}/2)...`);
+        setTimeout(() => getFriends(retryCount + 1), 1000 * (retryCount + 1));
+      } else {
+        console.warn('⚠️ Using empty friends list as fallback');
+        setFriends([]);
+        setFriendRequests([]);
+        setSentRequests([]);
+        toast.error("Failed to load friends list");
+      }
+      return [];
+    }
+  }, [api, authUser]);
+
+  // FIXED: Single, corrected sendFriendRequest function
+// FIXED: Enhanced sendFriendRequest function that checks multiple sources
+const sendFriendRequest = useCallback(async (userId) => {
+  try {
+    console.log('🎯 ChatContext: sendFriendRequest called with userId:', userId);
+    
+    // FIXED: Check multiple sources for the user
+    let userToAdd = null;
+    
+    // 1. First check the regular users list
+    userToAdd = users.find(u => u._id === userId);
+    
+    // 2. If not found, check if we can access search results (this is tricky since it's in Sidebar)
+    if (!userToAdd) {
+      console.log('🔍 User not found in users list, checking other sources...');
+      console.log('📊 Current users list:', users);
+      
+      // Since we can't directly access searchResults from Sidebar here,
+      // we'll try to fetch the user from the API
+      try {
+        console.log('🔄 Attempting to fetch user from API...');
+        const { data } = await api.get(`/api/users/${userId}`);
+        if (data.success) {
+          userToAdd = data.user;
+          console.log('✅ User fetched from API:', userToAdd);
+        }
+      } catch (fetchError) {
+        console.error('❌ Failed to fetch user from API:', fetchError);
+      }
+    }
+
+    if (!userToAdd) {
+      console.error('❌ User not found after all attempts');
+      console.log('🔍 Available users in state:', users.map(u => ({ id: u._id, name: u.fullName })));
+      toast.error("User not found in your contacts");
+      return false;
+    }
+
+    console.log('✅ User found:', userToAdd.fullName, userToAdd._id);
+
+    // Check if already friends
+    const isAlreadyFriend = friends.some(friend => friend._id === userId);
+    if (isAlreadyFriend) {
+      console.log('❌ Already friends with this user');
+      toast.error("You are already friends with this user");
+      return false;
+    }
+
+    // Check if request already sent
+    const hasPendingRequest = sentRequests.some(req => {
+      const toUserId = req.to?._id || req.to;
+      return toUserId === userId && req.status === 'pending';
+    });
+    
+    if (hasPendingRequest) {
+      console.log('❌ Friend request already sent');
+      toast.error("Friend request already sent");
+      return false;
+    }
+
+    // Check if request already received
+    const hasReceivedRequest = friendRequests.some(req => {
+      const fromUserId = req.from?._id || req.from;
+      return fromUserId === userId && req.status === 'pending';
+    });
+
+    if (hasReceivedRequest) {
+      console.log('❌ This user has already sent you a friend request');
+      toast.error("This user has already sent you a friend request");
+      return false;
+    }
+
+    // Check privacy settings
+    if (!canSendFriendRequest(userToAdd)) {
+      console.log('❌ Cannot send friend request due to privacy settings');
+      toast.error("This user is not accepting friend requests");
+      return false;
+    }
+
+    console.log('📤 Sending friend request to:', userId);
+    
+    // Enhanced API call with better error handling
+    try {
+      const { data } = await api.post(`/api/users/friend-request/${userId}`);
+      
+      if (data.success) {
+        console.log('✅ Friend request sent successfully');
+        toast.success("Friend request sent successfully");
+        // Refresh friends data
+        await getFriends();
+        await getUsers();
+        return true;
+      } else {
+        console.log('❌ Backend returned success: false', data.message);
+        toast.error(data.message);
+        return false;
+      }
+    } catch (apiError) {
+      console.error("❌ API call failed:", apiError);
+      if (apiError.response) {
+        console.error("❌ Response status:", apiError.response.status);
+        console.error("❌ Response data:", apiError.response.data);
+        if (apiError.response.status === 500) {
+          toast.error("Server error: Please try again later");
+        } else {
+          toast.error(apiError.response.data?.message || "Failed to send friend request");
+        }
+      } else {
+        toast.error("Network error: Please check your connection");
+      }
+      return false;
+    }
+  } catch (error) {
+    console.error("❌ Send friend request error:", error);
+    console.error("Error response:", error.response?.data);
+    toast.error(error.response?.data?.message || "Failed to send friend request");
+    return false;
+  }
+}, [api, getFriends, getUsers, users, friends, sentRequests, friendRequests, canSendFriendRequest]);
+
+  const acceptFriendRequest = useCallback(async (requestId) => {
+    try {
+      console.log('✅ Accepting friend request:', requestId);
+      
+      if (!requestId) {
+        toast.error("Invalid friend request");
+        return false;
+      }
+
+      const { data } = await api.put(`/api/users/friend-request/accept/${requestId}`);
+      if (data.success) {
+        toast.success("Friend request accepted!");
+        await getFriends();
+        await getUsers();
+        return true;
+      } else {
+        toast.error(data.message);
+        return false;
+      }
+    } catch (error) {
+      console.error("❌ Accept friend request error:", error);
+      toast.error(error.response?.data?.message || "Failed to accept friend request");
+      return false;
+    }
+  }, [api, getFriends, getUsers]);
+
+  const rejectFriendRequest = useCallback(async (requestId) => {
+    try {
+      console.log('❌ Rejecting friend request:', requestId);
+      
+      if (!requestId) {
+        toast.error("Invalid friend request");
+        return false;
+      }
+
+      const { data } = await api.put(`/api/users/friend-request/reject/${requestId}`);
+      if (data.success) {
+        toast.success("Friend request rejected");
+        await getFriends();
+        await getUsers();
+        return true;
+      } else {
+        toast.error(data.message);
+        return false;
+      }
+    } catch (error) {
+      console.error("❌ Reject friend request error:", error);
+      toast.error(error.response?.data?.message || "Failed to reject friend request");
+      return false;
+    }
+  }, [api, getFriends, getUsers]);
+
+  const removeFriend = useCallback(async (userId) => {
+    try {
+      const { data } = await api.delete(`/api/users/friend/${userId}`);
+      if (data.success) {
+        toast.success("Friend removed successfully");
+        await getFriends();
+        await getUsers();
+        return true;
+      } else {
+        toast.error(data.message);
+        return false;
+      }
+    } catch (error) {
+      console.error("❌ Remove friend error:", error);
+      toast.error(error.response?.data?.message || "Failed to remove friend");
+      return false;
+    }
+  }, [api, getFriends, getUsers]);
+
+  // ========== GROUP MANAGEMENT ==========
+
   const getMyGroups = useCallback(async (retryCount = 0) => {
     if (!authUser) return;
     
@@ -721,14 +820,14 @@ const clearChatPermanently = useCallback(async (chatId) => {
     }
   }, [api]);
 
-  // Message management
+  // ========== MESSAGE MANAGEMENT ==========
+
   const getMessage = useCallback(async (chatId, page = 1, forceRefresh = false) => {
     if (!chatId) {
       console.log('❌ No chatId provided to getMessage');
       return;
     }
     
-    // Don't reload if it's the same chat and same page (unless force refresh)
     if (currentChatIdRef.current === chatId && page === 1 && !forceRefresh) {
       console.log('🔄 Skipping duplicate message load for same chat');
       return;
@@ -736,7 +835,6 @@ const clearChatPermanently = useCallback(async (chatId) => {
     
     currentChatIdRef.current = chatId;
 
-    // Cancel previous request if it exists
     if (abortControllerRef.current) {
       console.log('🛑 Cancelling previous message request');
       abortControllerRef.current.abort();
@@ -756,7 +854,7 @@ const clearChatPermanently = useCallback(async (chatId) => {
       
       const { data } = await api.get(`${endpoint}?page=${page}&limit=50`, {
         signal: abortControllerRef.current.signal,
-        timeout: 10000 // 10 second timeout
+        timeout: 10000
       });
       
       if (data.success) {
@@ -772,7 +870,6 @@ const clearChatPermanently = useCallback(async (chatId) => {
         if (selectedUser?._id === chatId) {
           if (page === 1) {
             setMessages(msgs);
-            // Cache the messages
             setCachedMessages(chatId, msgs);
           } else {
             setMessages(prev => [...msgs, ...prev]);
@@ -783,11 +880,9 @@ const clearChatPermanently = useCallback(async (chatId) => {
         return msgs;
       }
     } catch (error) {
-      // Only log errors that aren't cancellation
       if (error.name !== 'AbortError' && error.code !== 'ERR_CANCELED') {
         console.error("Get messages error:", error);
         
-        // Show user-friendly error messages
         if (error.response?.status === 404) {
           toast.error("Chat not found");
         } else if (error.response?.status === 403) {
@@ -813,7 +908,6 @@ const clearChatPermanently = useCallback(async (chatId) => {
       return;
     }
 
-    // STRICT FRIENDS ONLY: Check if we can send messages to this user
     if (!selectedUser.members && !canSendMessageToUser(selectedUser)) {
       if (!friends.some(friend => friend._id === selectedUser._id)) {
         toast.error("You can only message friends. Send a friend request first!");
@@ -847,7 +941,6 @@ const clearChatPermanently = useCallback(async (chatId) => {
     };
 
     pendingMessagesRef.current.set(tempId, tempMessage);
-    
     setMessages(prev => [...prev, tempMessage]);
 
     try {
@@ -893,12 +986,11 @@ const clearChatPermanently = useCallback(async (chatId) => {
           )
         );
         
-        // Update cache
         if (selectedUser?._id) {
           const currentMessages = getCachedMessages(selectedUser._id) || [];
           const updatedMessages = currentMessages.map(msg => 
             msg._id === tempId ? { ...data.newMessage, status: "delivered" } : msg
-          ).filter(msg => msg._id !== tempId); // Remove temp message
+          ).filter(msg => msg._id !== tempId);
           updatedMessages.push({ ...data.newMessage, status: "delivered" });
           setCachedMessages(selectedUser._id, updatedMessages);
         }
@@ -948,21 +1040,52 @@ const clearChatPermanently = useCallback(async (chatId) => {
     return sendMessage(messageData);
   };
 
-  const getFriendsForSidebar = useCallback(async () => {
-    if (!authUser) return;
-    
-    try {
-      const { data } = await api.get("/api/users/friends/sidebar");
-      if (data.success) {
-        setUsers(data.friends || []);
-        setUnseenMessages(data.unseenMessages || {});
-        return data.friends;
-      }
-    } catch (error) {
-      console.error("Get friends for sidebar error:", error);
-      return getFriends();
+  const sendVoiceMessage = useCallback(async (audioBlob, receiverId, receiverType = 'User') => {
+    if (!receiverId || !authUser) {
+      toast.error("No receiver selected");
+      return;
     }
-  }, [api, authUser, getFriends]);
+
+    try {
+      toast.loading('Sending voice message...');
+
+      const base64Audio = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+      });
+
+      const uploadRes = await api.post('/api/upload', {
+        file: base64Audio,
+        resourceType: 'audio'
+      });
+
+      if (uploadRes.data.success) {
+        const messageData = {
+          text: '',
+          mediaUrls: [uploadRes.data.url],
+          fileType: 'audio'
+        };
+
+        if (receiverType === 'Group') {
+          await sendGroupMessage(messageData);
+        } else {
+          await sendMessage(messageData);
+        }
+        
+        toast.dismiss();
+        toast.success('Voice message sent!');
+      } else {
+        throw new Error('Upload failed');
+      }
+
+    } catch (error) {
+      console.error("Voice message error:", error);
+      toast.dismiss();
+      toast.error("Failed to send voice message");
+    }
+  }, [api, authUser, sendMessage, sendGroupMessage]);
 
   const editMessage = async (messageId, newText) => {
     if (!messageId || !newText?.trim()) return;
@@ -984,7 +1107,6 @@ const clearChatPermanently = useCallback(async (chatId) => {
           }
         }
         
-        // Update cache
         if (selectedUser?._id) {
           const currentMessages = getCachedMessages(selectedUser._id) || [];
           const updatedMessages = currentMessages.map(msg => 
@@ -1000,6 +1122,57 @@ const clearChatPermanently = useCallback(async (chatId) => {
     } catch (error) {
       console.error("Edit message error:", error);
       toast.error(error.response?.data?.message || "Failed to edit message");
+    }
+  };
+
+  const deleteMessageById = async (messageId, deleteForEveryone = false) => {
+    if (!messageId) return;
+    
+    try {
+      const endpoint = deleteForEveryone 
+        ? `/api/messages/delete/${messageId}?forEveryone=true`
+        : `/api/messages/delete/${messageId}`;
+      
+      const { data } = await api.delete(endpoint);
+      
+      if (data.success) {
+        if (socket) {
+          const message = messages.find(msg => msg._id === messageId);
+          if (message) {
+            socket.emit("messageDeleted", {
+              messageId,
+              chatId: selectedUser._id,
+              receiverType: message.receiverType,
+              deleteForEveryone
+            });
+          }
+        }
+        
+        if (selectedUser?._id) {
+          const currentMessages = getCachedMessages(selectedUser._id) || [];
+          const updatedMessages = currentMessages.filter(msg => msg._id !== messageId);
+          setCachedMessages(selectedUser._id, updatedMessages);
+        }
+        
+        toast.success(deleteForEveryone ? "Message deleted for everyone" : "Message deleted");
+        return { success: true };
+      } else {
+        toast.error(data.message);
+        return { success: false, error: data.message };
+      }
+    } catch (err) {
+      console.error("Delete message error:", err);
+      
+      if (err.response?.status === 403) {
+        toast.error("You are not authorized to delete this message");
+        return { success: false, error: "Not authorized" };
+      } else if (err.response?.status === 404) {
+        toast.error("Message not found");
+        return { success: false, error: "Message not found" };
+      } else {
+        toast.error(err.response?.data?.message || "Failed to delete message");
+        return { success: false, error: "Delete failed" };
+      }
     }
   };
 
@@ -1097,7 +1270,6 @@ const clearChatPermanently = useCallback(async (chatId) => {
         })
       );
 
-      // Update cache
       if (selectedUser?._id === chatId) {
         const currentMessages = getCachedMessages(chatId) || [];
         const updatedMessages = currentMessages.map(msg => ({
@@ -1185,7 +1357,77 @@ const clearChatPermanently = useCallback(async (chatId) => {
     }
   }, [socket, selectedUser, isGroup, authUser]);
 
-  // Chat settings
+  // ========== PINNED MESSAGES ==========
+
+  const pinMessage = useCallback(async (messageId) => {
+    try {
+      const { data } = await api.post(`/api/messages/${messageId}/pin`);
+      if (data.success) {
+        setPinnedMessages(prev => [...prev, data.pinnedMessage]);
+        toast.success("Message pinned");
+        return true;
+      }
+    } catch (error) {
+      console.error("Pin message error:", error);
+      toast.error("Failed to pin message");
+      return false;
+    }
+  }, [api]);
+
+  const unpinMessage = useCallback(async (messageId) => {
+    try {
+      const { data } = await api.delete(`/api/messages/${messageId}/pin`);
+      if (data.success) {
+        setPinnedMessages(prev => prev.filter(msg => msg._id !== messageId));
+        toast.success("Message unpinned");
+        return true;
+      }
+    } catch (error) {
+      console.error("Unpin message error:", error);
+      toast.error("Failed to unpin message");
+      return false;
+    }
+  }, [api]);
+
+  const getPinnedMessages = useCallback(async (chatId) => {
+    if (!chatId) return [];
+    
+    try {
+      console.log(`📌 Fetching pinned messages for chat: ${chatId}`);
+      
+      const isGroupChat = groups.some(group => group._id === chatId) || selectedUser?.members;
+      
+      let endpoint;
+      if (isGroupChat) {
+        endpoint = `/api/groups/${chatId}/pinned-messages`;
+      } else {
+        endpoint = `/api/messages/pinned/${chatId}`;
+      }
+      
+      const { data } = await api.get(endpoint);
+      
+      if (data.success) {
+        console.log(`✅ Loaded ${data.pinnedMessages?.length || 0} pinned messages`);
+        setPinnedMessages(data.pinnedMessages || []);
+        return data.pinnedMessages || [];
+      } else {
+        console.warn('⚠️ No pinned messages endpoint or empty response');
+        setPinnedMessages([]);
+        return [];
+      }
+    } catch (error) {
+      if (error.response?.status === 404) {
+        console.log('📌 Pinned messages endpoint not available, returning empty array');
+      } else {
+        console.error("Get pinned messages error:", error);
+      }
+      setPinnedMessages([]);
+      return [];
+    }
+  }, [api, groups, selectedUser]);
+
+  // ========== CHAT SETTINGS ==========
+
   const updateChatSettings = useCallback((chatId, settings) => {
     setChatSettings(prev => ({
       ...prev,
@@ -1197,123 +1439,8 @@ const clearChatPermanently = useCallback(async (chatId) => {
     return chatSettings[chatId] || {};
   }, [chatSettings]);
 
-  // Utility functions
-  const getFileType = (url) => {
-    if (!url || typeof url !== 'string') return 'other';
-    
-    const extension = url.split('.').pop()?.toLowerCase() || '';
-    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'];
-    const docExtensions = ['pdf', 'doc', 'docx', 'txt', 'zip', 'rar', 'xls', 'xlsx', 'ppt', 'pptx'];
-    const audioExtensions = ['mp3', 'wav', 'ogg', 'm4a'];
-    const videoExtensions = ['mp4', 'avi', 'mov', 'wmv'];
-    
-    if (imageExtensions.includes(extension)) return 'image';
-    if (docExtensions.includes(extension)) return 'document';
-    if (audioExtensions.includes(extension)) return 'audio';
-    if (videoExtensions.includes(extension)) return 'video';
-    return 'other';
-  };
+  // ========== FILE UPLOAD ==========
 
-  const getFileIcon = (filename) => {
-    const extension = filename.split('.').pop()?.toLowerCase();
-    switch (extension) {
-      case 'pdf':
-        return '📄';
-      case 'doc':
-      case 'docx':
-        return '📝';
-      case 'xls':
-      case 'xlsx':
-        return '📊';
-      case 'zip':
-      case 'rar':
-        return '📦';
-      case 'txt':
-        return '📃';
-      case 'mp3':
-      case 'wav':
-      case 'ogg':
-        return '🎵';
-      case 'mp4':
-      case 'avi':
-      case 'mov':
-        return '🎥';
-      default:
-        return '📎';
-    }
-  };
-
-  const downloadFile = async (url, filename) => {
-    try {
-      toast.loading('Downloading file...');
-      const response = await fetch(url);
-      const blob = await response.blob();
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(downloadUrl);
-      toast.dismiss();
-      toast.success('File downloaded successfully');
-    } catch (error) {
-      console.error('Download error:', error);
-      toast.dismiss();
-      toast.error('Failed to download file');
-    }
-  };
-
-  // Enhanced voice message sending
-  const sendVoiceMessage = useCallback(async (audioBlob, receiverId, receiverType = 'User') => {
-    if (!receiverId || !authUser) {
-      toast.error("No receiver selected");
-      return;
-    }
-
-    try {
-      toast.loading('Sending voice message...');
-
-      const base64Audio = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(audioBlob);
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-      });
-
-      const uploadRes = await api.post('/api/upload', {
-        file: base64Audio,
-        resourceType: 'audio'
-      });
-
-      if (uploadRes.data.success) {
-        const messageData = {
-          text: '',
-          mediaUrls: [uploadRes.data.url],
-          fileType: 'audio'
-        };
-
-        if (receiverType === 'Group') {
-          await sendGroupMessage(messageData);
-        } else {
-          await sendMessage(messageData);
-        }
-        
-        toast.dismiss();
-        toast.success('Voice message sent!');
-      } else {
-        throw new Error('Upload failed');
-      }
-
-    } catch (error) {
-      console.error("Voice message error:", error);
-      toast.dismiss();
-      toast.error("Failed to send voice message");
-    }
-  }, [api, authUser, sendMessage, sendGroupMessage]);
-
-  // File upload function
   const uploadFile = async (file, onProgress = null) => {
     try {
       console.log("📤 Uploading file:", file.name, file.type, file.size);
@@ -1342,7 +1469,6 @@ const clearChatPermanently = useCallback(async (chatId) => {
     } catch (error) {
       console.error("❌ Upload error:", error);
       
-      // Handle specific error cases
       if (error.response?.data?.message) {
         throw new Error(error.response.data.message);
       } else if (error.message.includes('Network Error')) {
@@ -1353,7 +1479,6 @@ const clearChatPermanently = useCallback(async (chatId) => {
     }
   };
 
-  // Update the uploadAudio function:
   const uploadAudio = async (base64Audio) => {
     try {
       console.log("🎤 Uploading audio file...");
@@ -1361,7 +1486,7 @@ const clearChatPermanently = useCallback(async (chatId) => {
       const response = await api.post('/api/upload/base64', {
         file: base64Audio,
         filename: `voice-${Date.now()}.webm`,
-        resourceType: 'video' // Cloudinary uses 'video' for audio files
+        resourceType: 'video'
       });
 
       if (response.data.success) {
@@ -1376,7 +1501,174 @@ const clearChatPermanently = useCallback(async (chatId) => {
     }
   };
 
-  // Socket event handlers
+  // ========== FRIENDS FOR SIDEBAR ==========
+
+  const getFriendsForSidebar = useCallback(async () => {
+    if (!authUser) return;
+    
+    try {
+      const { data } = await api.get("/api/users/friends/sidebar");
+      if (data.success) {
+        setUsers(data.friends || []);
+        setUnseenMessages(data.unseenMessages || {});
+        return data.friends;
+      }
+    } catch (error) {
+      console.error("Get friends for sidebar error:", error);
+      return getFriends();
+    }
+  }, [api, authUser, getFriends]);
+
+  // ========== CLEAR CHAT ==========
+
+  const clearChatPermanently = useCallback(async (chatId) => {
+    if (!chatId || !authUser) {
+        console.log('❌ Missing chatId or authUser');
+        return false;
+    }
+
+    try {
+        console.log('🔍 FRONTEND - Clear Chat Called (User-specific):');
+        console.log('   - Chat ID:', chatId);
+        console.log('   - Auth User ID:', authUser._id);
+        
+        const endpoint = `/api/messages/clear/${chatId}`;
+        console.log('   - Calling endpoint:', endpoint);
+
+        const { data } = await api.delete(endpoint);
+        
+        console.log('   - Backend response:', data);
+        
+        if (data.success) {
+            console.log(`✅ CHAT CLEARED SUCCESS - Cleared ${data.deletedCount} messages for current user only`);
+            
+            if (selectedUser?._id === chatId) {
+                setMessages([]);
+            }
+            
+            clearCachedMessages(chatId);
+            
+            toast.success(`Chat cleared (${data.deletedCount} messages removed from your view)`);
+            return true;
+        } else {
+            console.log('❌ Backend returned success: false');
+            throw new Error(data.message);
+        }
+    } catch (error) {
+        console.error('❌ FRONTEND - Clear chat error:', error);
+        console.error('   - Error response:', error.response?.data);
+        toast.error(error.response?.data?.message || "Failed to clear chat");
+        return false;
+    }
+  }, [api, authUser, clearCachedMessages, selectedUser]);
+
+  // ========== BLOCK/UNBLOCK USERS ==========
+
+  const blockUser = useCallback(async (userId) => {
+    try {
+      const { data } = await api.put(`/api/users/block/${userId}`);
+      if (data.success) {
+        setBlockedUsers(prev => [...prev, userId]);
+        toast.success("User blocked successfully");
+        
+        if (selectedUser?._id === userId) {
+          setSelectedUser(null);
+        }
+      }
+    } catch (error) {
+      console.error("Block user error:", error);
+      toast.error(error.response?.data?.message || "Failed to block user");
+    }
+  }, [api, selectedUser]);
+
+  const unblockUser = useCallback(async (userId) => {
+    try {
+      const { data } = await api.put(`/api/users/unblock/${userId}`);
+      if (data.success) {
+        setBlockedUsers(prev => prev.filter(id => id !== userId));
+        toast.success("User unblocked successfully");
+      }
+    } catch (error) {
+      console.error("Unblock user error:", error);
+      toast.error(error.response?.data?.message || "Failed to unblock user");
+    }
+  }, [api]);
+
+  // ========== TRENDING CHATS ==========
+
+  const getTrendingChats = useCallback(async () => {
+    try {
+      const trending = groups
+        .sort((a, b) => b.members.length - a.members.length)
+        .slice(0, 5)
+        .map(group => ({ ...group, type: 'group', trending: true }));
+      
+      setTrendingChats(trending);
+    } catch (error) {
+      console.error("Trending chats error:", error);
+    }
+  }, [groups]);
+
+  // ========== CHAT CONTENT EXTRACTION ==========
+
+  const extractChatContent = useCallback((messages) => {
+    if (!messages || messages.length === 0) return;
+
+    const media = messages
+      .filter(msg => msg.media && msg.media.length > 0)
+      .flatMap(msg => msg.media)
+      .filter(url => typeof url === 'string' && url.includes('http'));
+    setChatMedia([...new Set(media)]);
+
+    const links = messages
+      .filter(msg => msg.text && typeof msg.text === 'string')
+      .map(msg => {
+        const urlRegex = /https?:\/\/[^\s]+/g;
+        const links = msg.text.match(urlRegex);
+        return links ? links.map(link => ({ 
+          link, 
+          timestamp: msg.createdAt,
+          sender: msg.senderId?._id === authUser?._id ? 'You' : (isGroup ? msg.senderName : selectedUser?.fullName),
+          messageId: msg._id
+        })) : [];
+      })
+      .flat();
+    setSharedLinks([...new Set(links)]);
+
+    const docs = messages
+      .filter(msg => msg.media && msg.media.length > 0)
+      .flatMap(msg => 
+        msg.media.map(mediaUrl => {
+          const fileType = getFileType(mediaUrl);
+          if (fileType === 'document') {
+            return {
+              url: mediaUrl,
+              name: mediaUrl.split('/').pop(),
+              timestamp: msg.createdAt,
+              type: fileType,
+              sender: msg.senderId?._id === authUser?._id ? 'You' : (isGroup ? msg.senderName : selectedUser?.fullName),
+              messageId: msg._id
+            };
+          }
+          return null;
+        })
+      )
+      .filter(doc => doc !== null);
+    setSharedDocs(docs);
+
+    const locations = messages
+      .filter(msg => msg.location)
+      .map(msg => ({
+        location: msg.location,
+        timestamp: msg.createdAt,
+        sender: msg.senderId?._id === authUser?._id ? 'You' : (isGroup ? msg.senderName : selectedUser?.fullName),
+        messageId: msg._id
+      }));
+    setSharedLocations(locations);
+  }, [authUser, isGroup, selectedUser]);
+
+  // ========== SOCKET EVENT HANDLERS ==========
+
   useEffect(() => {
     if (!socket || !authUser) return;
 
@@ -1409,7 +1701,6 @@ const clearChatPermanently = useCallback(async (chatId) => {
           console.log('✅ Adding new message to chat');
           const updatedMessages = [...prev, newMessage];
           
-          // Update cache
           if (selectedUser?._id) {
             setCachedMessages(selectedUser._id, updatedMessages);
           }
@@ -1440,7 +1731,6 @@ const clearChatPermanently = useCallback(async (chatId) => {
         )
       );
       
-      // Update cache
       if (selectedUser?._id === data.chatId) {
         const currentMessages = getCachedMessages(data.chatId) || [];
         const updatedMessages = currentMessages.map(msg =>
@@ -1486,7 +1776,6 @@ const clearChatPermanently = useCallback(async (chatId) => {
           )
         );
         
-        // Update cache
         if (selectedUser?._id) {
           const currentMessages = getCachedMessages(selectedUser._id) || [];
           const updatedMessages = currentMessages.map(msg =>
@@ -1504,7 +1793,6 @@ const clearChatPermanently = useCallback(async (chatId) => {
       if (message && (message.receiverId === selectedUser?._id || message.senderId?._id === selectedUser?._id)) {
         setMessages(prev => prev.filter(msg => msg._id !== data.messageId));
         
-        // Update cache
         if (selectedUser?._id) {
           const currentMessages = getCachedMessages(selectedUser._id) || [];
           const updatedMessages = currentMessages.filter(msg => msg._id !== data.messageId);
@@ -1545,7 +1833,6 @@ const clearChatPermanently = useCallback(async (chatId) => {
         )
       );
       
-      // Update cache
       if (selectedUser?._id) {
         const currentMessages = getCachedMessages(selectedUser._id) || [];
         const updatedMessages = currentMessages.map(msg =>
@@ -1557,7 +1844,6 @@ const clearChatPermanently = useCallback(async (chatId) => {
       }
     };
 
-    // Typing indicators
     const handleTyping = ({ senderId, isTyping, receiverId, userName }) => {
       if (selectedUser?._id === senderId || receiverId === authUser?._id) {
         setIsTyping(isTyping);
@@ -1594,7 +1880,6 @@ const clearChatPermanently = useCallback(async (chatId) => {
       }
     };
 
-    // Friend request notifications
     const handleFriendRequest = (data) => {
       toast.success(`Friend request from ${data.fromUser?.fullName || 'Unknown User'}`);
       getFriends();
@@ -1605,7 +1890,6 @@ const clearChatPermanently = useCallback(async (chatId) => {
       getFriends();
     };
 
-    // Message pinned/unpinned
     const handleMessagePinned = (data) => {
       setPinnedMessages(prev => [...prev, data.pinnedMessage]);
     };
@@ -1614,31 +1898,22 @@ const clearChatPermanently = useCallback(async (chatId) => {
       setPinnedMessages(prev => prev.filter(msg => msg._id !== data.messageId));
     };
 
-    // Chat cleared handler
-// In the socket useEffect in ChatContext.jsx - Update the handleChatCleared function
-// In ChatContext.jsx - Update the handleChatCleared function
-const handleChatCleared = (data) => {
-    try {
+    const handleChatCleared = (data) => {
+      try {
         const { chatId, clearedBy, clearedByName, clearedForUserOnly, message } = data || {};
         
         console.log(`🗑️ Received chat cleared event:`, data);
         
-        // IMPORTANT: Only show notification if it's the other user clearing their chat
         if (selectedUser?._id === chatId && clearedBy !== authUser._id) {
-            // This is the other user clearing their chat - just show notification
-            toast.info(message || `${clearedByName} cleared their chat history`);
-            
-            // Don't clear our messages - each user manages their own view
-            console.log(`ℹ️ ${clearedByName} cleared their chat - your messages remain unchanged`);
+          toast.info(message || `${clearedByName} cleared their chat history`);
+          console.log(`ℹ️ ${clearedByName} cleared their chat - your messages remain unchanged`);
         }
         
-        // If we cleared our own chat, the local state is already updated via the API response
-        // No need to do anything for other users clearing their chats
-        
-    } catch (err) {
+      } catch (err) {
         console.error('❌ Error handling chatCleared event:', err);
-    }
-};
+      }
+    };
+
     // Register event listeners
     socket.on("newMessage", handleIncomingMessage);
     socket.on("newGroupMessage", handleIncomingMessage);
@@ -1660,7 +1935,6 @@ const handleChatCleared = (data) => {
     socket.on('chatCleared', handleChatCleared);
 
     return () => {
-      // Clean up event listeners
       socket.off("newMessage", handleIncomingMessage);
       socket.off("newGroupMessage", handleIncomingMessage);
       socket.off("messageSeen", handleMessageSeen);
@@ -1680,9 +1954,10 @@ const handleChatCleared = (data) => {
       socket.off("messageUnpinned", handleMessageUnpinned);
       socket.off('chatCleared', handleChatCleared);
     };
-  }, [socket, selectedUser, authUser, getMyGroups, getFriends, messages, getCachedMessages, setCachedMessages, clearCachedMessages]);
+  }, [socket, selectedUser, authUser, getMyGroups, getFriends, messages, getCachedMessages, setCachedMessages]);
 
-  // Initial data loading
+  // ========== OTHER EFFECTS ==========
+
   const fetchInitialData = useCallback(async () => {
     if (!authUser) return;
     
@@ -1705,12 +1980,10 @@ const handleChatCleared = (data) => {
     }
   }, [authUser]);
 
-  // Reset messages and state when selected user changes
   useEffect(() => {
     if (selectedUser?._id !== prevSelectedUserRef.current) {
       console.log("🔄 Chat switched to:", selectedUser?._id);
       
-      // Load cached messages first for instant display
       if (selectedUser) {
         const cachedMessages = getCachedMessages(selectedUser._id);
         if (cachedMessages && cachedMessages.length > 0) {
@@ -1739,7 +2012,6 @@ const handleChatCleared = (data) => {
     }
   }, [selectedUser?._id, addToRecentChats, getCachedMessages]);
 
-  // Join group room when selecting a group
   useEffect(() => {
     if (socket && selectedUser && isGroup) {
       socket.emit("joinGroup", selectedUser._id);
@@ -1752,7 +2024,6 @@ const handleChatCleared = (data) => {
     };
   }, [socket, selectedUser, isGroup]);
 
-  // Cleanup typing timeout
   useEffect(() => {
     return () => {
       if (typingTimeoutRef.current) {
@@ -1760,67 +2031,6 @@ const handleChatCleared = (data) => {
       }
     };
   }, []);
-
-  // Extract chat content for right sidebar
-  const extractChatContent = useCallback((messages) => {
-    if (!messages || messages.length === 0) return;
-
-    // Extract media
-    const media = messages
-      .filter(msg => msg.media && msg.media.length > 0)
-      .flatMap(msg => msg.media)
-      .filter(url => typeof url === 'string' && url.includes('http'));
-    setChatMedia([...new Set(media)]);
-
-    // Extract links
-    const links = messages
-      .filter(msg => msg.text && typeof msg.text === 'string')
-      .map(msg => {
-        const urlRegex = /https?:\/\/[^\s]+/g;
-        const links = msg.text.match(urlRegex);
-        return links ? links.map(link => ({ 
-          link, 
-          timestamp: msg.createdAt,
-          sender: msg.senderId?._id === authUser?._id ? 'You' : (isGroup ? msg.senderName : selectedUser?.fullName),
-          messageId: msg._id
-        })) : [];
-      })
-      .flat();
-    setSharedLinks([...new Set(links)]);
-
-    // Extract documents
-    const docs = messages
-      .filter(msg => msg.media && msg.media.length > 0)
-      .flatMap(msg => 
-        msg.media.map(mediaUrl => {
-          const fileType = getFileType(mediaUrl);
-          if (fileType === 'document') {
-            return {
-              url: mediaUrl,
-              name: mediaUrl.split('/').pop(),
-              timestamp: msg.createdAt,
-              type: fileType,
-              sender: msg.senderId?._id === authUser?._id ? 'You' : (isGroup ? msg.senderName : selectedUser?.fullName),
-              messageId: msg._id
-            };
-          }
-          return null;
-        })
-      )
-      .filter(doc => doc !== null);
-    setSharedDocs(docs);
-
-    // Extract locations
-    const locations = messages
-      .filter(msg => msg.location)
-      .map(msg => ({
-        location: msg.location,
-        timestamp: msg.createdAt,
-        sender: msg.senderId?._id === authUser?._id ? 'You' : (isGroup ? msg.senderName : selectedUser?.fullName),
-        messageId: msg._id
-      }));
-    setSharedLocations(locations);
-  }, [authUser, isGroup, selectedUser]);
 
   useEffect(() => {
     if (messages.length === 0 || !selectedUser) return;
@@ -1832,95 +2042,12 @@ const handleChatCleared = (data) => {
     return () => clearTimeout(timeoutId);
   }, [messages.length, selectedUser?._id, extractChatContent]);
 
-  // Get trending chats
-  const getTrendingChats = useCallback(async () => {
-    try {
-      const trending = groups
-        .sort((a, b) => b.members.length - a.members.length)
-        .slice(0, 5)
-        .map(group => ({ ...group, type: 'group', trending: true }));
-      
-      setTrendingChats(trending);
-    } catch (error) {
-      console.error("Trending chats error:", error);
-    }
-  }, [groups]);
-
   useEffect(() => {
     getTrendingChats();
   }, [getTrendingChats]);
 
-  // Block/Unblock users
-  const blockUser = useCallback(async (userId) => {
-    try {
-      const { data } = await api.put(`/api/users/block/${userId}`);
-      if (data.success) {
-        setBlockedUsers(prev => [...prev, userId]);
-        toast.success("User blocked successfully");
-        
-        if (selectedUser?._id === userId) {
-          setSelectedUser(null);
-        }
-      }
-    } catch (error) {
-      console.error("Block user error:", error);
-      toast.error(error.response?.data?.message || "Failed to block user");
-    }
-  }, [api, selectedUser]);
+  // ========== CONTEXT VALUE ==========
 
-  const unblockUser = useCallback(async (userId) => {
-    try {
-      const { data } = await api.put(`/api/users/unblock/${userId}`);
-      if (data.success) {
-        setBlockedUsers(prev => prev.filter(id => id !== userId));
-        toast.success("User unblocked successfully");
-      }
-    } catch (error) {
-      console.error("Unblock user error:", error);
-      toast.error(error.response?.data?.message || "Failed to unblock user");
-    }
-  }, [api]);
-
-  const getPinnedMessages = useCallback(async (chatId) => {
-    if (!chatId) return [];
-    
-    try {
-      console.log(`📌 Fetching pinned messages for chat: ${chatId}`);
-      
-      // Check if this is a group or individual chat
-      const isGroupChat = groups.some(group => group._id === chatId) || selectedUser?.members;
-      
-      let endpoint;
-      if (isGroupChat) {
-        endpoint = `/api/groups/${chatId}/pinned-messages`;
-      } else {
-        endpoint = `/api/messages/pinned/${chatId}`;
-      }
-      
-      const { data } = await api.get(endpoint);
-      
-      if (data.success) {
-        console.log(`✅ Loaded ${data.pinnedMessages?.length || 0} pinned messages`);
-        setPinnedMessages(data.pinnedMessages || []);
-        return data.pinnedMessages || [];
-      } else {
-        console.warn('⚠️ No pinned messages endpoint or empty response');
-        setPinnedMessages([]);
-        return [];
-      }
-    } catch (error) {
-      // Handle 404 and other errors gracefully
-      if (error.response?.status === 404) {
-        console.log('📌 Pinned messages endpoint not available, returning empty array');
-      } else {
-        console.error("Get pinned messages error:", error);
-      }
-      setPinnedMessages([]);
-      return [];
-    }
-  }, [api, groups, selectedUser]);
-
-  // Context value
   const contextValue = useMemo(() => ({
     // State
     messages,
@@ -2033,86 +2160,20 @@ const handleChatCleared = (data) => {
     onlineUsers,
     isGroup: !!isGroup,
   }), [
-    messages,
-    users,
-    groups,
-    trendingChats,
-    selectedUser,
-    unseenMessages,
-    isTyping,
-    typingUsers,
-    reactions,
-    messageReplies,
-    forwardedMessages,
-    pagination,
-    blockedUsers,
-    isLoadingMessages,
-    chatMedia,
-    sharedLinks,
-    sharedDocs,
-    sharedLocations,
-    searchHistory,
-    recentChats,
-    pinnedMessages,
-    chatSettings,
-    friends,
-    friendRequests,
-    sentRequests,
-    canViewUserProfile,
-    canSendMessageToUser,
-    canSendFriendRequest,
-    getUsers,
-    getMyGroups,
-    searchUsers,
-    searchUsersByEmail,
-    enhancedSearchUsers,
-    searchGroups,
-    getMessage,
-    sendMessage,
-    sendGroupMessage,
-    sendVoiceMessage,
-    markMessagesAsSeen,
-    sendTypingStatus,
-    getFriends,
-    sendFriendRequest,
-    acceptFriendRequest,
-    rejectFriendRequest,
-    removeFriend,
-    reactToMessage,
-    removeReaction,
-    editMessage,
-    deleteMessageById,
-    forwardMessagesToUser,
-    pinMessage,
-    unpinMessage,
-    getPinnedMessages,
-    createGroup,
-    addMemberToGroup,
-    removeMemberFromGroup,
-    leaveGroup,
-    updateGroupInfo,
-    blockUser,
-    unblockUser,
-    addToSearchHistory,
-    clearSearchHistory,
-    addToRecentChats,
-    removeFromRecentChats,
-    clearRecentChats,
-    updateChatSettings,
-    getChatSettings,
-    downloadFile,
-    getFileIcon,
-    getFileType,
-    uploadFile,
-    uploadAudio,
-    getCachedMessages,
-    setCachedMessages,
-    clearCachedMessages,
-    getFriendsForSidebar,
-    clearChatPermanently,
-    onlineUsers,
-    isGroup,
-    getPinnedMessages
+    messages, users, groups, trendingChats, selectedUser, unseenMessages, isTyping, 
+    typingUsers, reactions, messageReplies, forwardedMessages, pagination, blockedUsers,
+    isLoadingMessages, chatMedia, sharedLinks, sharedDocs, sharedLocations, searchHistory,
+    recentChats, pinnedMessages, chatSettings, friends, friendRequests, sentRequests,
+    canViewUserProfile, canSendMessageToUser, canSendFriendRequest, getUsers, getMyGroups,
+    searchUsers, searchUsersByEmail, enhancedSearchUsers, searchGroups, getMessage, sendMessage,
+    sendGroupMessage, sendVoiceMessage, markMessagesAsSeen, sendTypingStatus, getFriends,
+    sendFriendRequest, acceptFriendRequest, rejectFriendRequest, removeFriend, reactToMessage,
+    removeReaction, editMessage, deleteMessageById, forwardMessagesToUser, pinMessage, unpinMessage,
+    getPinnedMessages, createGroup, addMemberToGroup, removeMemberFromGroup, leaveGroup,
+    updateGroupInfo, blockUser, unblockUser, addToSearchHistory, clearSearchHistory,
+    addToRecentChats, removeFromRecentChats, clearRecentChats, updateChatSettings, getChatSettings,
+    getFriendsForSidebar, downloadFile, getFileIcon, getFileType, uploadFile, uploadAudio,
+    getCachedMessages, setCachedMessages, clearCachedMessages, clearChatPermanently, onlineUsers, isGroup
   ]);
 
   return (
