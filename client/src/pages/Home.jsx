@@ -3,23 +3,62 @@ import { motion, AnimatePresence } from "framer-motion";
 import Sidebar from "../components/Sidebar";
 import ChatContainer from "../components/ChatContainer";
 import RightSidebar from "../components/RightSidebar";
+import Profile from "./Profile";
 import { ChatContext } from "../../context/ChatContext";
+import { AuthContext } from "../../context/AuthContext";
 
 const Home = () => {
-  const { selectedUser, selectedGroup, setSelectedUser } = useContext(ChatContext);
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const { selectedUser, selectedGroup } = useContext(ChatContext);
+  const { authUser } = useContext(AuthContext);
+  
+  // State management
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [hasNewMessage, setHasNewMessage] = useState(false);
-  const [notificationVisible, setNotificationVisible] = useState(false);
-  const [hoveredFeature, setHoveredFeature] = useState(null);
-  const mainContentRef = useRef(null);
+  const [activeView, setActiveView] = useState("chats"); // "chats", "profile", "rightSidebar"
+  const [showWelcome, setShowWelcome] = useState(true);
 
   const isChatActive = selectedUser || selectedGroup;
+  const touchStartRef = useRef(null);
 
-  // Enhanced animated background with particles
+  // Custom scrollbar styles
+  const scrollbarStyles = `
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 10px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  `;
+
+  // Add scrollbar styles to head
+  useEffect(() => {
+    const styleElement = document.createElement('style');
+    styleElement.innerHTML = scrollbarStyles;
+    document.head.appendChild(styleElement);
+    
+    return () => {
+      document.head.removeChild(styleElement);
+    };
+  }, []);
+
+  // Particle Background Component
   const ParticleBackground = () => {
-    const particles = Array.from({ length: 30 }, (_, i) => ({
+    const particles = Array.from({ length: 15 }, (_, i) => ({
       id: i,
       size: Math.random() * 3 + 1,
       x: Math.random() * 100,
@@ -30,48 +69,19 @@ const Home = () => {
 
     return (
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {/* Aurora Background */}
         <div className="absolute inset-0">
           <motion.div 
             className="absolute -top-40 -right-40 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl"
-            animate={{
-              opacity: [0.3, 0.6, 0.3],
-              scale: [1, 1.1, 1],
-            }}
-            transition={{
-              duration: 4,
-              repeat: Infinity,
-              repeatType: "reverse"
-            }}
+            animate={{ opacity: [0.3, 0.6, 0.3] }}
+            transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
           />
           <motion.div 
             className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl"
-            animate={{
-              opacity: [0.3, 0.7, 0.3],
-              scale: [1, 1.2, 1],
-            }}
-            transition={{
-              duration: 5,
-              repeat: Infinity,
-              repeatType: "reverse",
-              delay: 2
-            }}
-          />
-          <motion.div 
-            className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl"
-            animate={{
-              y: [0, -20, 0],
-              opacity: [0.1, 0.3, 0.1],
-            }}
-            transition={{
-              duration: 8,
-              repeat: Infinity,
-              repeatType: "reverse"
-            }}
+            animate={{ opacity: [0.4, 0.7, 0.4] }}
+            transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 2 }}
           />
         </div>
         
-        {/* Animated Particles */}
         {particles.map(particle => (
           <motion.div
             key={particle.id}
@@ -83,9 +93,9 @@ const Home = () => {
               top: `${particle.y}%`,
             }}
             animate={{
-              y: [0, -20, 0],
+              y: [0, -30, 0],
               x: [0, 10, 0],
-              opacity: [0, 1, 0],
+              opacity: [0, 0.8, 0],
             }}
             transition={{
               duration: particle.duration,
@@ -98,13 +108,7 @@ const Home = () => {
     );
   };
 
-  // Enhanced glassmorphism containers
-  const GlassCard = ({ children, className = '' }) => (
-    <div className={`bg-white/5 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-2xl shadow-purple-500/10 ${className}`}>
-      {children}
-    </div>
-  );
-
+  // Window resize handler
   useEffect(() => {
     const handleResize = () => {
       const mobile = window.innerWidth < 768;
@@ -118,226 +122,283 @@ const Home = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Close profile sidebar when selected user changes on mobile
+  // Touch gesture handlers for mobile swipe
   useEffect(() => {
-    if (isMobile && isProfileOpen) {
-      setIsProfileOpen(false);
-    }
-  }, [selectedUser, selectedGroup, isMobile, isProfileOpen]);
+    const handleTouchStart = (e) => {
+      touchStartRef.current = e.touches[0].clientX;
+    };
 
-  // Enhanced new message notification with animations
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (!isChatActive && Math.random() > 0.7) {
-        setHasNewMessage(true);
-        setNotificationVisible(true);
+    const handleTouchEnd = (e) => {
+      if (!touchStartRef.current || !isMobile) return;
+
+      const touchEnd = e.changedTouches[0].clientX;
+      const diff = touchStartRef.current - touchEnd;
+
+      // Swipe right to open sidebar (only when in chats view)
+      if (diff < -50 && activeView === "chats" && !isChatActive) {
+        setSidebarCollapsed(false);
       }
-    }, 15000);
-    
-    return () => clearInterval(interval);
-  }, [isChatActive]);
+      
+      // Swipe left to go back from profile/rightsidebar to chats
+      if (diff > 50 && (activeView === "profile" || activeView === "rightSidebar")) {
+        setActiveView("chats");
+      }
 
+      touchStartRef.current = null;
+    };
+
+    document.addEventListener('touchstart', handleTouchStart);
+    document.addEventListener('touchend', handleTouchEnd);
+
+    return () => {
+      document.removeEventListener('touchstart', handleTouchStart);
+      document.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [isMobile, activeView, isChatActive]);
+
+  // Reset to chats view when chat becomes active
   useEffect(() => {
-    if (hasNewMessage) {
+    if (isChatActive && activeView !== "chats") {
+      setActiveView("chats");
+    }
+  }, [isChatActive, activeView]);
+
+  // Auto-hide welcome message after delay
+  useEffect(() => {
+    if (showWelcome && !isChatActive && activeView === "chats") {
       const timer = setTimeout(() => {
-        setNotificationVisible(false);
-        setTimeout(() => setHasNewMessage(false), 300);
-      }, 3000);
+        setShowWelcome(false);
+      }, 6000);
       return () => clearTimeout(timer);
     }
-  }, [hasNewMessage]);
+  }, [showWelcome, isChatActive, activeView]);
 
-  const handleMobileBack = () => {
-    if (isProfileOpen) {
-      setIsProfileOpen(false);
+  // Handler functions
+  const handleOpenProfileFromSidebar = () => {
+    setActiveView("profile");
+  };
+
+  const handleOpenProfileFromChat = () => {
+    if (isMobile) {
+      setActiveView("rightSidebar");
     } else {
-      setSelectedUser(null);
+      setActiveView("rightSidebar");
     }
   };
 
-  const handleOpenProfile = () => {
-    setIsProfileOpen(true);
+  const handleCloseProfile = () => {
+    setActiveView("chats");
+  };
+
+  const handleBackToChats = () => {
+    setActiveView("chats");
   };
 
   const toggleSidebar = () => {
     setSidebarCollapsed(!sidebarCollapsed);
   };
 
-  // Animation variants
-  const sidebarVariants = {
-    open: { 
-      x: 0, 
-      opacity: 1,
-      transition: { 
-        type: "spring", 
-        stiffness: 300, 
-        damping: 30 
-      }
-    },
-    closed: { 
-      x: "-100%", 
-      opacity: 0,
-      transition: { 
-        type: "spring", 
-        stiffness: 300, 
-        damping: 30 
-      }
-    }
+  const handleStartChatting = () => {
+    setShowWelcome(false);
   };
 
-  const chatVariants = {
-    enter: { 
-      x: isMobile ? "100%" : 0, 
-      opacity: 0 
-    },
-    center: { 
-      x: 0, 
-      opacity: 1,
-      transition: { 
-        type: "spring", 
-        stiffness: 300, 
-        damping: 30 
-      }
-    },
-    exit: { 
-      x: isMobile ? "-100%" : 0, 
-      opacity: 0,
-      transition: { 
-        type: "spring", 
-        stiffness: 300, 
-        damping: 30 
-      }
-    }
-  };
-
-  const featureCards = [
-    {
-      id: 1,
-      title: "Personal Chats",
-      icon: (
-        <svg className="w-5 h-5 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 005 10a6 6 0 0112 0c0 .-.1.15-.286.331l-.002.003c-.277.27-.602.567-.945.861a5 5 0 00-4.767-2.195z" clipRule="evenodd" />
-        </svg>
-      ),
-      color: "from-purple-500/20 to-purple-600/20",
-      glow: "shadow-purple-500/50"
-    },
-    {
-      id: 2,
-      title: "Group Chats",
-      icon: (
-        <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-        </svg>
-      ),
-      color: "from-blue-500/20 to-blue-600/20",
-      glow: "shadow-blue-500/50"
-    },
-    {
-      id: 3,
-      title: "Media Sharing",
-      icon: (
-        <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-      ),
-      color: "from-green-500/20 to-green-600/20",
-      glow: "shadow-green-500/50"
-    },
-    {
-      id: 4,
-      title: "Fast & Secure",
-      icon: (
-        <svg className="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-        </svg>
-      ),
-      color: "from-orange-500/20 to-orange-600/20",
-      glow: "shadow-orange-500/50"
-    }
-  ];
-
-  // Enhanced message animation component
-  const AnimatedMessageIllustration = () => (
-    <div className="relative w-48 h-48">
+  // Welcome Message Component
+  const WelcomeMessage = () => (
+    <motion.div 
+      className="flex flex-col items-center justify-center h-full text-white text-center p-8 relative z-10"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.8 }}
+    >
       <motion.div
-        className="absolute inset-0 bg-gradient-to-br from-purple-500/20 to-blue-500/20 backdrop-blur-sm border border-white/10 rounded-3xl"
-        whileHover={{ 
-          scale: 1.05,
-          rotateX: 5,
-          rotateY: -5
-        }}
-        transition={{ type: "spring", stiffness: 300, damping: 20 }}
+        className="mb-12"
+        initial={{ y: -30, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ delay: 0.2, duration: 0.6 }}
       >
-        {/* Animated message exchange */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <motion.div
-            className="w-16 h-8 bg-purple-500/40 rounded-2xl rounded-bl-none"
-            animate={{
-              y: [0, -10, 0],
-              opacity: [0.7, 1, 0.7]
-            }}
-            transition={{
-              duration: 2,
-              repeat: Infinity,
-              repeatType: "reverse"
-            }}
-          />
-          <motion.div
-            className="w-12 h-8 bg-blue-500/40 rounded-2xl rounded-br-none ml-8 -mt-4"
-            animate={{
-              y: [0, 10, 0],
-              opacity: [0.7, 1, 0.7]
-            }}
-            transition={{
-              duration: 2,
-              repeat: Infinity,
-              repeatType: "reverse",
-              delay: 1
-            }}
-          />
-        </div>
+        <motion.div
+          className="w-24 h-24 mx-auto mb-6 rounded-3xl bg-gradient-to-br from-purple-500/20 to-blue-500/20 backdrop-blur-sm border border-white/20 flex items-center justify-center relative overflow-hidden"
+          whileHover={{ scale: 1.05 }}
+          transition={{ type: "spring", stiffness: 300 }}
+        >
+          {authUser?.profilePic ? (
+            <img 
+              src={authUser.profilePic} 
+              alt="Profile" 
+              className="w-full h-full object-cover rounded-3xl"
+            />
+          ) : (
+            <div className="text-3xl">
+              {authUser?.fullName?.split(' ').map(n => n[0]).join('').toUpperCase() || '👋'}
+            </div>
+          )}
+        </motion.div>
         
-        {/* Floating elements */}
-        <motion.div
-          className="absolute -top-2 -right-2 w-4 h-4 bg-yellow-400/40 rounded-full backdrop-blur-sm border border-yellow-400/50"
-          animate={{
-            scale: [1, 1.5, 1],
-            opacity: [0.5, 1, 0.5]
-          }}
-          transition={{
-            duration: 2,
-            repeat: Infinity
-          }}
-        />
-        <motion.div
-          className="absolute -bottom-2 -left-2 w-3 h-3 bg-green-400/40 rounded-full backdrop-blur-sm border border-green-400/50"
-          animate={{
-            scale: [1, 1.8, 1],
-            opacity: [0.5, 1, 0.5]
-          }}
-          transition={{
-            duration: 2.5,
-            repeat: Infinity,
-            delay: 1
-          }}
-        />
+        <motion.h3 
+          className="text-2xl font-bold mb-2 bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent"
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.4, duration: 0.6 }}
+        >
+          Welcome to Connect
+        </motion.h3>
+        <motion.p 
+          className="text-white/60 text-sm"
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.5, duration: 0.6 }}
+        >
+          Start meaningful conversations with your connections
+        </motion.p>
       </motion.div>
-    </div>
+
+      <motion.div
+        className="relative mb-12"
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+        transition={{ 
+          type: "spring", 
+          stiffness: 100, 
+          damping: 15,
+          delay: 0.6 
+        }}
+      >
+        <div className="w-48 h-48 rounded-3xl bg-gradient-to-br from-purple-500/20 to-blue-500/20 backdrop-blur-sm border border-white/20 flex items-center justify-center">
+          <div className="text-5xl">💬</div>
+        </div>
+      </motion.div>
+
+      <motion.button
+        onClick={handleStartChatting}
+        className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600 text-white px-8 py-4 rounded-2xl font-semibold shadow-2xl shadow-purple-500/30 transition-all duration-300"
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.8, duration: 0.6 }}
+      >
+        Start Chatting
+      </motion.button>
+    </motion.div>
   );
 
+  // Minimal Welcome State
+  const MinimalWelcome = () => (
+    <motion.div 
+      className="flex flex-col items-center justify-center h-full text-white text-center p-8"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      <motion.div
+        className="mb-8"
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ duration: 0.5 }}
+      >
+        <div className="w-32 h-32 mx-auto mb-6 rounded-3xl bg-gradient-to-br from-purple-500/20 to-blue-500/20 backdrop-blur-sm border border-white/20 flex items-center justify-center">
+          <div className="text-5xl">💬</div>
+        </div>
+        <motion.h3 
+          className="text-2xl font-bold mb-3 bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent"
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.2, duration: 0.5 }}
+        >
+          Your Messages
+        </motion.h3>
+        <motion.p 
+          className="text-white/70 text-base"
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.3, duration: 0.5 }}
+        >
+          Select a conversation to start chatting
+        </motion.p>
+      </motion.div>
+    </motion.div>
+  );
+
+  // Determine what to render in main content area
+  const renderMainContent = () => {
+    // Profile View (Full width like ChatContainer)
+    if (activeView === "profile") {
+      return (
+        <div className="w-full h-full bg-gradient-to-b from-slate-800/50 to-slate-900/50 backdrop-blur-3xl custom-scrollbar overflow-hidden">
+          <Profile onClose={handleBackToChats} isMobile={isMobile} />
+        </div>
+      );
+    }
+
+    // Right Sidebar View (User profile from chat)
+    if (activeView === "rightSidebar") {
+      if (isMobile) {
+        // On mobile, right sidebar takes full screen
+        return (
+          <div className="w-full h-full bg-gradient-to-b from-slate-800/50 to-slate-900/50 backdrop-blur-3xl custom-scrollbar overflow-hidden">
+            <RightSidebar onClose={handleBackToChats} isMobile={isMobile} />
+          </div>
+        );
+      } else {
+        // On desktop, show chat + right sidebar
+        return (
+          <>
+            <div className="flex-1 h-full">
+              {isChatActive ? (
+                <ChatContainer 
+                  onOpenProfile={handleOpenProfileFromChat} 
+                  isProfileOpen={activeView === "rightSidebar"}
+                />
+              ) : (
+                <div className="h-full bg-gradient-to-b from-slate-800/50 to-slate-900/50 backdrop-blur-3xl custom-scrollbar overflow-hidden">
+                  {showWelcome ? <WelcomeMessage /> : <MinimalWelcome />}
+                </div>
+              )}
+            </div>
+            <div className="w-96 h-full border-l border-white/10 custom-scrollbar overflow-hidden">
+              <RightSidebar onClose={handleBackToChats} isMobile={isMobile} />
+            </div>
+          </>
+        );
+      }
+    }
+
+    // Default Chats View
+    return (
+      <div className="w-full h-full custom-scrollbar overflow-hidden">
+        {isChatActive ? (
+          <ChatContainer 
+            onOpenProfile={handleOpenProfileFromChat} 
+            isProfileOpen={activeView === "rightSidebar"}
+          />
+        ) : (
+          <div className="h-full bg-gradient-to-b from-slate-800/50 to-slate-900/50 backdrop-blur-3xl custom-scrollbar overflow-hidden">
+            {showWelcome ? <WelcomeMessage /> : <MinimalWelcome />}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <div className="w-full h-screen bg-gradient-to-br from-purple-900 via-slate-900 to-slate-900 flex overflow-hidden relative">
+    <div className="w-full h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex overflow-hidden relative">
       <ParticleBackground />
 
       {/* Floating Action Button for Mobile */}
-      {isMobile && !isChatActive && !isProfileOpen && (
+      {isMobile && activeView === "chats" && !isChatActive && (
         <motion.button
           onClick={toggleSidebar}
-          className="md:hidden fixed bottom-6 right-6 z-50 bg-gradient-to-r from-purple-600 to-blue-500 text-white p-4 rounded-full shadow-2xl shadow-purple-500/30 hover:shadow-purple-500/50 transition-all duration-300"
+          className="md:hidden fixed bottom-8 right-8 z-50 bg-gradient-to-r from-purple-600 to-blue-500 text-white p-4 rounded-full shadow-2xl shadow-purple-500/30 hover:shadow-purple-500/50 transition-all duration-300"
           whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.95 }}
+          whileTap={{ scale: 0.9 }}
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ 
+            type: "spring", 
+            stiffness: 200, 
+            damping: 15,
+            delay: 0.5 
+          }}
         >
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -345,29 +406,29 @@ const Home = () => {
         </motion.button>
       )}
 
-      {/* Sidebar with Enhanced Animations */}
-      <AnimatePresence mode="wait">
-        {(!isMobile || !isChatActive) && (
+      {/* Sidebar - Show in chats view and when profile is active on desktop */}
+      <AnimatePresence>
+        {(activeView === "chats" || (!isMobile && activeView === "profile")) && (
           <motion.div
-            initial={isMobile ? "closed" : false}
-            animate="open"
-            exit="closed"
-            variants={sidebarVariants}
             className={`
-              h-full flex-shrink-0 bg-white/5 backdrop-blur-3xl border-r border-white/10
-              transition-all duration-500 ease-out relative z-30
+              h-full flex-shrink-0 bg-white/10 backdrop-blur-3xl border-r border-white/20
+              transition-all duration-500 ease-out relative z-30 custom-scrollbar overflow-hidden
               ${isMobile 
-                ? (isChatActive || isProfileOpen ? '-translate-x-full' : 'translate-x-0 w-full') 
-                : sidebarCollapsed ? 'w-20' : 'w-80 lg:w-96'
+                ? (activeView !== "chats" ? '-translate-x-full' : 'translate-x-0 w-full') 
+                : sidebarCollapsed ? 'w-20' : 'w-80'
               }
-              ${sidebarCollapsed && !isMobile ? 'hover:w-80' : ''}
             `}
+            initial={isMobile ? { x: -400 } : { x: 0 }}
+            animate={{ 
+              x: isMobile && activeView !== "chats" ? -400 : 0 
+            }}
+            exit={{ x: -400 }}
+            transition={{ type: "spring", damping: 30, stiffness: 300 }}
           >
             <Sidebar 
               isMobile={isMobile} 
-              onUserSelect={() => {}} 
               selectedUser={selectedUser}
-              setIsProfileOpen={setIsProfileOpen}
+              setIsProfileOpen={handleOpenProfileFromSidebar}
               collapsed={sidebarCollapsed}
               onToggleCollapse={toggleSidebar}
             />
@@ -375,218 +436,32 @@ const Home = () => {
         )}
       </AnimatePresence>
 
-      {/* Enhanced Collapse Toggle Button for Desktop */}
-      {!isMobile && (
-        <motion.button
-          onClick={toggleSidebar}
-          className="fixed top-4 z-40 bg-white/10 backdrop-blur-md text-white/80 p-2 rounded-lg border border-white/20 hover:bg-white/20 hover:text-white transition-all duration-300 hidden md:block"
-          style={{ left: sidebarCollapsed ? '5rem' : '19rem' }}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          aria-expanded={!sidebarCollapsed}
-        >
-          <motion.svg 
-            className="w-4 h-4" 
-            fill="none" 
-            stroke="currentColor" 
-            viewBox="0 0 24 24"
-            animate={{ rotate: sidebarCollapsed ? 180 : 0 }}
+      {/* Main Content Area */}
+      <div className="flex-1 h-full relative overflow-hidden flex">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeView}
+            className="flex-1 h-full flex"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
             transition={{ duration: 0.3 }}
           >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-          </motion.svg>
-        </motion.button>
-      )}
-
-      {/* Main Content Area */}
-      <div 
-        ref={mainContentRef}
-        className={`
-          flex-1 h-full relative overflow-hidden
-          transition-all duration-500 ease-out
-          ${isMobile && !isChatActive && !isProfileOpen ? 'hidden' : 'flex'}
-        `}
-      >
-        <AnimatePresence mode="wait">
-          {/* Chat Container */}
-          <motion.div
-            key={isChatActive ? "chat-active" : "chat-inactive"}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            variants={chatVariants}
-            className={`
-              h-full transition-all duration-500 bg-gradient-to-b from-slate-800/50 to-slate-900/50 backdrop-blur-3xl
-              ${isProfileOpen 
-                ? (isMobile ? 'hidden' : 'w-2/3 lg:w-3/4') 
-                : 'w-full'
-              }
-              relative
-            `}
-          >
-            {isChatActive ? (
-              <ChatContainer 
-                onOpenProfile={handleOpenProfile} 
-                onBack={handleMobileBack}
-                isProfileOpen={isProfileOpen}
-              />
-            ) : (
-              // Premium Desktop Placeholder with Enhanced Animations
-              !isMobile && (
-                <motion.div 
-                  className="flex flex-col items-center justify-center h-full text-white/80 text-center p-8 relative z-10"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6 }}
-                >
-                  <AnimatedMessageIllustration />
-
-                  <motion.h3 
-                    className="text-3xl font-bold mb-4 bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.2 }}
-                  >
-                    Welcome to Connect
-                  </motion.h3>
-                  <motion.p 
-                    className="text-white/60 mb-8 max-w-md text-lg"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.3 }}
-                  >
-                    Start a conversation and stay connected with your friends and colleagues
-                  </motion.p>
-                  
-                  {/* Enhanced Feature Cards with Staggered Animation */}
-                  <div className="grid grid-cols-2 gap-4 max-w-md">
-                    {featureCards.map((feature, index) => (
-                      <motion.div
-                        key={feature.id}
-                        className={`
-                          bg-gradient-to-br ${feature.color} backdrop-blur-sm rounded-2xl p-4 border border-white/10 
-                          transition-all duration-300 group cursor-pointer relative overflow-hidden
-                          ${hoveredFeature === feature.id ? `shadow-lg ${feature.glow} transform -translate-y-1` : ''}
-                        `}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.4 + index * 0.1 }}
-                        whileHover={{ 
-                          scale: 1.05,
-                          y: -2
-                        }}
-                        onHoverStart={() => setHoveredFeature(feature.id)}
-                        onHoverEnd={() => setHoveredFeature(null)}
-                      >
-                        <div className="relative z-10">
-                          <motion.div 
-                            className={`w-10 h-10 bg-gradient-to-br ${feature.color.replace('/20', '/30')} rounded-xl mb-3 flex items-center justify-center`}
-                            whileHover={{ scale: 1.1 }}
-                            transition={{ type: "spring", stiffness: 400 }}
-                          >
-                            {feature.icon}
-                          </motion.div>
-                          <p className="text-sm font-medium">{feature.title}</p>
-                        </div>
-                        
-                        {/* Hover glow effect */}
-                        <div className={`absolute inset-0 rounded-2xl bg-gradient-to-br ${feature.color} opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-sm -z-10`} />
-                      </motion.div>
-                    ))}
-                  </div>
-                </motion.div>
-              )
-            )}
+            {renderMainContent()}
           </motion.div>
         </AnimatePresence>
-
-        {/* Right Sidebar (Profile) */}
-        <AnimatePresence>
-          {isProfileOpen && (
-            <motion.div
-              initial={{ x: isMobile ? '100%' : 0, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: isMobile ? '100%' : 0, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
-              className={`
-                h-full bg-white/5 backdrop-blur-3xl border-l border-white/10
-                ${isMobile 
-                  ? 'w-full absolute inset-0 z-40' 
-                  : 'w-1/3 lg:w-1/4 flex-shrink-0'
-                }
-              `}
-            >
-              <RightSidebar 
-                onClose={() => setIsProfileOpen(false)} 
-                isMobile={isMobile}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Enhanced Mobile placeholder */}
-        {isMobile && !isChatActive && !isProfileOpen && (
-          <motion.div 
-            className="w-full flex flex-col items-center justify-center h-full text-white/80 text-center p-8 relative"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5 }}
-          >
-            <div className="mb-6">
-              <motion.div 
-                className="w-24 h-24 mx-auto mb-4 rounded-3xl bg-gradient-to-br from-purple-500/20 to-blue-500/20 backdrop-blur-sm border border-white/10 flex items-center justify-center"
-                animate={{ 
-                  scale: [1, 1.05, 1],
-                  rotate: [0, 2, 0, -2, 0]
-                }}
-                transition={{ 
-                  duration: 4,
-                  repeat: Infinity,
-                  repeatType: "reverse"
-                }}
-              >
-                <svg className="w-10 h-10 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                </svg>
-              </motion.div>
-              <h3 className="text-2xl font-bold mb-2 bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent">
-                Your Messages
-              </h3>
-              <p className="text-white/60 text-sm">
-                Select a conversation to start chatting
-              </p>
-            </div>
-            
-            {/* Animated typing indicator */}
-            <motion.div className="absolute bottom-32 flex space-x-1">
-              {[0, 1, 2].map((dot) => (
-                <motion.div
-                  key={dot}
-                  className="w-2 h-2 bg-purple-400 rounded-full"
-                  animate={{ y: [0, -10, 0] }}
-                  transition={{
-                    duration: 1,
-                    repeat: Infinity,
-                    delay: dot * 0.2
-                  }}
-                />
-              ))}
-            </motion.div>
-          </motion.div>
-        )}
       </div>
 
-      {/* Enhanced Mobile back button */}
-      {isMobile && (isChatActive || isProfileOpen) && (
+      {/* Back Button for Mobile when in profile/rightsidebar views */}
+      {isMobile && (activeView === "profile" || activeView === "rightSidebar") && (
         <motion.button
-          onClick={handleMobileBack}
-          className="md:hidden fixed top-6 left-6 z-50 bg-white/10 backdrop-blur-md text-white p-3 rounded-xl shadow-2xl border border-white/20 hover:bg-white/20 transition-all duration-300"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.2 }}
+          onClick={handleBackToChats}
+          className="md:hidden fixed top-4 left-4 z-50 bg-black/50 text-white p-3 rounded-full backdrop-blur-sm border border-white/20"
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: "spring", stiffness: 200, damping: 15 }}
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -594,52 +469,17 @@ const Home = () => {
         </motion.button>
       )}
 
-      {/* Enhanced Mobile overlay */}
-      {isMobile && isProfileOpen && (
-        <motion.div 
-          className="md:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-30"
+      {/* Swipe Hint for Mobile */}
+      {isMobile && activeView === "chats" && !isChatActive && (
+        <motion.div
+          className="md:hidden fixed bottom-4 left-1/2 transform -translate-x-1/2 z-40 bg-black/50 backdrop-blur-sm rounded-full px-4 py-2 border border-white/20"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          role="button"
-          tabIndex={0}
-          onClick={() => setIsProfileOpen(false)}
-          onKeyDown={(e) => { if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') setIsProfileOpen(false); }}
-          aria-label="Close profile overlay"
-        />
+          transition={{ delay: 2 }}
+        >
+          <p className="text-white/60 text-xs">Swipe right to open menu</p>
+        </motion.div>
       )}
-
-      {/* Enhanced New Message Notification */}
-      <AnimatePresence>
-        {notificationVisible && (
-          <motion.div
-            initial={{ opacity: 0, y: -50, scale: 0.8 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -50, scale: 0.8 }}
-            transition={{ type: "spring", stiffness: 500, damping: 30 }}
-            className="fixed top-4 right-4 z-50 bg-gradient-to-r from-green-500 to-emerald-500 text-white px-4 py-3 rounded-2xl shadow-2xl shadow-green-500/30"
-          >
-            <div className="flex items-center space-x-3">
-              <motion.div
-                className="w-3 h-3 bg-white rounded-full"
-                animate={{ scale: [1, 1.5, 1] }}
-                transition={{ duration: 1, repeat: Infinity }}
-              />
-              <span className="text-sm font-medium">New message received</span>
-              <motion.button
-                onClick={() => setNotificationVisible(false)}
-                className="text-white/80 hover:text-white transition-colors"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </motion.button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };

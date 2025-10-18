@@ -4,11 +4,18 @@ import axios from "axios";
 import toast from "react-hot-toast";
 import { io } from "socket.io-client";
 
-// Get backend URL from environment variables
-const backendUrl = import.meta.env.VITE_BACKEND_URL;
+// Get backend URL from environment variables with fallback
+const getBackendUrl = () => {
+  const devTunnelUrl = import.meta.env.VITE_BACKEND_URL;
+  // Remove trailing slash if present
+  return devTunnelUrl ? devTunnelUrl.replace(/\/$/, '') : 'http://localhost:5000';
+};
 
-// ✅ CORRECT: Set baseURL properly without quotes or semicolon
+const backendUrl = getBackendUrl();
+
+// ✅ Set baseURL properly
 axios.defaults.baseURL = backendUrl;
+axios.defaults.withCredentials = true;
 
 export const AuthContext = createContext();
 
@@ -25,16 +32,18 @@ export const AuthProvider = ({ children }) => {
   
   const socketRef = useRef(null);
   const authCheckedRef = useRef(false);
+  const [currentBackendUrl, setCurrentBackendUrl] = useState(backendUrl);
 
   // Enhanced API call function with proper URL handling
   const apiCall = useCallback(async (method, endpoint, data = null, options = {}) => {
     try {
       // Ensure endpoint starts with /api
-      const url = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+      const url = endpoint.startsWith('/api') ? endpoint : `/api${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
       
       const config = {
         method,
         url,
+        withCredentials: true,
         ...options
       };
 
@@ -46,7 +55,7 @@ export const AuthProvider = ({ children }) => {
         }
       }
 
-      console.log(`🔍 API Call: ${method} ${url}`);
+      console.log(`🔍 API Call: ${method} ${url} to ${currentBackendUrl}`);
       const response = await axios(config);
       return response.data;
     } catch (error) {
@@ -55,6 +64,11 @@ export const AuthProvider = ({ children }) => {
       // Enhanced error handling
       if (error.response) {
         console.error('Error response:', error.response.data);
+        if (error.response.status === 401) {
+          localStorage.removeItem("token");
+          setToken(null);
+          setAuthUser(null);
+        }
       } else if (error.request) {
         console.error('No response received:', error.request);
       } else {
@@ -63,7 +77,7 @@ export const AuthProvider = ({ children }) => {
       
       throw error;
     }
-  }, []);
+  }, [currentBackendUrl]);
 
   // Socket connection
   const connectSocket = useCallback((userData) => {
@@ -78,16 +92,17 @@ export const AuthProvider = ({ children }) => {
       socketRef.current = null;
     }
 
-    console.log('🔌 Establishing socket connection for user:', userData._id);
+    console.log('🔌 Establishing socket connection for user:', userData._id, 'to:', currentBackendUrl);
 
-    // ✅ Use backendUrl directly for socket connection
-    const newSocket = io(backendUrl, { 
+    // ✅ Use currentBackendUrl for socket connection
+    const newSocket = io(currentBackendUrl, { 
       query: { userId: userData._id },
       transports: ['websocket', 'polling'],
       autoConnect: true,
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,
+      withCredentials: true
     });
 
     newSocket.on("connect", () => {
@@ -158,12 +173,12 @@ export const AuthProvider = ({ children }) => {
     });
 
     socketRef.current = newSocket;
-  }, []);
+  }, [currentBackendUrl]);
 
   // Load friends list
   const loadFriends = async () => {
     try {
-      const data = await apiCall('get', 'api/users/friends');
+      const data = await apiCall('get', '/users/friends');
       if (data.success) {
         setFriends(data.friends || []);
       }
@@ -175,7 +190,7 @@ export const AuthProvider = ({ children }) => {
   // Load pending friend requests
   const loadPendingRequests = async () => {
     try {
-      const data = await apiCall('get', 'api/users/friend-requests/pending');
+      const data = await apiCall('get', '/users/friend-requests/pending');
       if (data.success) {
         setPendingRequests(data.pendingRequests || []);
       }
@@ -187,7 +202,7 @@ export const AuthProvider = ({ children }) => {
   // Load messages for a chat
   const loadMessages = useCallback(async (chatId) => {
     try {
-      const data = await apiCall('get', `api/messages/${chatId}`);
+      const data = await apiCall('get', `/messages/${chatId}`);
       if (data.success && data.messages) {
         setMessages(prev => {
           const newMessages = new Map(prev);
@@ -232,7 +247,7 @@ export const AuthProvider = ({ children }) => {
       });
 
       // Send via API
-      const data = await apiCall('post', `api/messages/send/${receiverId}`, {
+      const data = await apiCall('post', `/messages/send/${receiverId}`, {
         text: messageText
       });
 
@@ -275,12 +290,63 @@ export const AuthProvider = ({ children }) => {
     }
   }, [authUser, apiCall]);
 
+  // Test backend connection with fallback
+  const testBackendConnection = async () => {
+    const testUrl = async (url) => {
+      try {
+        console.log('🔍 Testing backend connection to:', url);
+        // Create a temporary axios instance for testing
+        const testAxios = axios.create({
+          baseURL: url,
+          timeout: 5000,
+          withCredentials: true
+        });
+        
+        const response = await testAxios.get('/api/status');
+        console.log('✅ Backend connection successful to:', url);
+        return { success: true, url, data: response.data };
+      } catch (error) {
+        console.log(`❌ Connection failed to ${url}:`, error.message);
+        return { success: false, url, error: error.message };
+      }
+    };
+
+    // Test primary URL first
+    const primaryResult = await testUrl(backendUrl);
+    
+    if (primaryResult.success) {
+      setCurrentBackendUrl(backendUrl);
+      axios.defaults.baseURL = backendUrl;
+      return true;
+    }
+
+    // If primary fails and it's not localhost, try localhost:5000
+    if (!backendUrl.includes('localhost') && !backendUrl.includes('127.0.0.1')) {
+      console.log('🔄 Trying fallback to localhost:5000...');
+      const fallbackUrl = 'http://localhost:5000';
+      const fallbackResult = await testUrl(fallbackUrl);
+      
+      if (fallbackResult.success) {
+        setCurrentBackendUrl(fallbackUrl);
+        axios.defaults.baseURL = fallbackUrl;
+        toast.success(`Connected to local server: ${fallbackUrl}`);
+        return true;
+      }
+    }
+
+    console.log('💡 Make sure your backend is running at:', backendUrl);
+    if (!backendUrl.includes('localhost')) {
+      console.log('💡 Or try running on localhost:5000');
+    }
+    return false;
+  };
+
   // Enhanced login function
   const login = async (credentials) => {
     try {
       setIsLoading(true);
       
-      const data = await apiCall('post', 'api/users/login', credentials);
+      const data = await apiCall('post', '/users/login', credentials);
       
       if (data.success) {
         const userData = data.userData || data.user;
@@ -321,7 +387,7 @@ export const AuthProvider = ({ children }) => {
   const signup = async (credentials) => {
     try {
       setIsLoading(true);
-      const data = await apiCall('post', 'api/users/signup', credentials);
+      const data = await apiCall('post', '/users/signup', credentials);
       
       if (data.success) {
         toast.success(data.message);
@@ -383,7 +449,7 @@ export const AuthProvider = ({ children }) => {
       setToken(storedToken);
       axios.defaults.headers.common["Authorization"] = `Bearer ${storedToken}`;
       
-      const data = await apiCall('get', 'api/users/check');
+      const data = await apiCall('get', '/users/check');
       
       if (data.success) {
         setAuthUser(data.user);
@@ -404,7 +470,7 @@ export const AuthProvider = ({ children }) => {
   // Friend management functions
   const sendFriendRequestByEmail = async (email) => {
     try {
-      const data = await apiCall('post', 'api/users/friend-request/email', { email });
+      const data = await apiCall('post', '/users/friend-request/email', { email });
       if (data.success) {
         toast.success("Friend request sent");
         
@@ -430,7 +496,7 @@ export const AuthProvider = ({ children }) => {
 
   const acceptFriendRequest = async (requestId) => {
     try {
-      const data = await apiCall('put', `api/users/friend-request/accept/${requestId}`);
+      const data = await apiCall('put', `/users/friend-request/accept/${requestId}`);
       if (data.success) {
         setAuthUser(data.user);
         toast.success("Friend request accepted");
@@ -459,7 +525,7 @@ export const AuthProvider = ({ children }) => {
 
   const rejectFriendRequest = async (requestId) => {
     try {
-      const data = await apiCall('put', `api/users/friend-request/reject/${requestId}`);
+      const data = await apiCall('put', `/users/friend-request/reject/${requestId}`);
       if (data.success) {
         setAuthUser(data.user);
         toast.success("Friend request rejected");
@@ -478,7 +544,7 @@ export const AuthProvider = ({ children }) => {
 
   const removeFriend = async (friendId) => {
     try {
-      const data = await apiCall('delete', `api/users/friend/${friendId}`);
+      const data = await apiCall('delete', `/users/friend/${friendId}`);
       if (data.success) {
         setAuthUser(data.user);
         toast.success("Friend removed");
@@ -498,7 +564,7 @@ export const AuthProvider = ({ children }) => {
   // Search users (only non-friends)
   const searchUsers = async (query) => {
     try {
-      const data = await apiCall('get', `api/users/search?query=${encodeURIComponent(query)}`);
+      const data = await apiCall('get', `/users/search?query=${encodeURIComponent(query)}`);
       if (data.success) {
         return data.users || [];
       }
@@ -512,7 +578,7 @@ export const AuthProvider = ({ children }) => {
   // Get users for sidebar (only friends)
   const getChatUsers = async () => {
     try {
-      const data = await apiCall('get', "api/messages/users");
+      const data = await apiCall('get', "/messages/users");
       if (data.success) {
         return data.users || [];
       }
@@ -540,26 +606,12 @@ export const AuthProvider = ({ children }) => {
     setNotifications([]);
   };
 
-  // Test backend connection
-  const testBackendConnection = async () => {
-    try {
-      console.log('🔍 Testing backend connection to:', backendUrl);
-      const response = await axios.get('/api/status');
-      console.log('✅ Backend connection successful:', response.data);
-      return true;
-    } catch (error) {
-      console.error('❌ Backend connection failed:', error);
-      console.log('💡 Make sure your backend is running at:', backendUrl);
-      return false;
-    }
-  };
-
   // Resend verification email with email parameter
   const resendVerification = async (email) => {
     try {
       setIsLoading(true);
       
-      const { data } = await axios.post('/api/users/resend-verification', { email });
+      const data = await apiCall('post', '/users/resend-verification', { email });
       
       if (data.success) {
         toast.success("Verification email sent! Please check your inbox.");
@@ -580,10 +632,13 @@ export const AuthProvider = ({ children }) => {
 
   // Effects
   useEffect(() => {
-    // Test connection first
+    // Test connection first with fallback
     testBackendConnection().then(success => {
       if (success) {
         checkAuth();
+      } else {
+        setIsLoading(false);
+        toast.error(`Cannot connect to backend server. Tried: ${backendUrl} and localhost:5000`);
       }
     });
   }, [checkAuth]);
@@ -609,6 +664,7 @@ export const AuthProvider = ({ children }) => {
     conversations,
     friends,
     pendingRequests,
+    currentBackendUrl, // Expose current backend URL for debugging
     
     // Auth functions
     login,

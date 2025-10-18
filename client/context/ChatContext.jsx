@@ -11,6 +11,7 @@ export const ChatProvider = ({ children }) => {
   const [groups, setGroups] = useState([]);
   const [trendingChats, setTrendingChats] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
+  const [selectedGroup, setSelectedGroup] = useState(null);
   const [unseenMessages, setUnseenMessages] = useState({});
   const [isTyping, setIsTyping] = useState(false);
   const [typingUsers, setTypingUsers] = useState({});
@@ -28,6 +29,7 @@ export const ChatProvider = ({ children }) => {
   const [recentChats, setRecentChats] = useState([]);
   const [pinnedMessages, setPinnedMessages] = useState([]);
   const [chatSettings, setChatSettings] = useState({});
+  const [favorites, setFavorites] = useState([]);
   
   // Friend system states
   const [friends, setFriends] = useState([]);
@@ -42,7 +44,7 @@ export const ChatProvider = ({ children }) => {
   const prevSelectedUserRef = useRef(null);
   const pendingMessagesRef = useRef(new Map());
   const messageCacheRef = useRef(new Map());
-  const isGroup = selectedUser?.members;
+  const isGroup = selectedGroup;
 
   // ========== UTILITY FUNCTIONS ==========
   
@@ -213,7 +215,6 @@ export const ChatProvider = ({ children }) => {
     }
   }, [authUser, friends, sentRequests, friendRequests]);
 
-  // FIXED: Enhanced canSendFriendRequest with better debugging
   const canSendFriendRequest = useCallback((user) => {
     if (!user) {
       console.log('❌ canSendFriendRequest: No user provided');
@@ -319,23 +320,20 @@ export const ChatProvider = ({ children }) => {
   }, []);
 
   // ========== USER MANAGEMENT ==========
-// In ChatContext, update the getUsers function to get ALL users:
-// In ChatContext, update getUsers to get ALL users:
-const getUsers = useCallback(async () => {
-  try {
-    const { data } = await api.get("/api/messages/users");
-    if (data.success) {
-      // FIXED: Show ALL users, not just friends
-      // This ensures searched users are available for friend requests
-      setUsers(data.users || []);
-      setUnseenMessages(data.unseenMessages || {});
-      setBlockedUsers(data.blockedUsers || []);
+
+  const getUsers = useCallback(async () => {
+    try {
+      const { data } = await api.get("/api/messages/users");
+      if (data.success) {
+        setUsers(data.users || []);
+        setUnseenMessages(data.unseenMessages || {});
+        setBlockedUsers(data.blockedUsers || []);
+      }
+    } catch (error) {
+      console.error("Get users error:", error);
+      toast.error("Failed to load users");
     }
-  } catch (error) {
-    console.error("Get users error:", error);
-    toast.error("Failed to load users");
-  }
-}, [api, authUser]); // Remove friends dependency // Removed friends dependency since we're not filtering anymore
+  }, [api]);
 
   const searchUsers = useCallback(async (query) => {
     try {
@@ -413,6 +411,50 @@ const getUsers = useCallback(async () => {
     }
   }, [searchUsers, searchUsersByEmail]);
 
+  // ========== FAVORITES MANAGEMENT ==========
+
+  const addFavorite = useCallback(async (chatId, type = 'user') => {
+    try {
+      const { data } = await api.post('/api/favorites/add', { chatId, type });
+      if (data.success) {
+        setFavorites(prev => [...prev, data.favorite]);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Add favorite error:", error);
+      return false;
+    }
+  }, [api]);
+
+  const removeFavorite = useCallback(async (chatId) => {
+    try {
+      const { data } = await api.delete(`/api/favorites/remove/${chatId}`);
+      if (data.success) {
+        setFavorites(prev => prev.filter(fav => fav.chatId !== chatId));
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Remove favorite error:", error);
+      return false;
+    }
+  }, [api]);
+
+  const getFavorites = useCallback(async () => {
+    try {
+      const { data } = await api.get('/api/favorites');
+      if (data.success) {
+        setFavorites(data.favorites || []);
+        return data.favorites;
+      }
+      return [];
+    } catch (error) {
+      console.error("Get favorites error:", error);
+      return [];
+    }
+  }, [api]);
+
   // ========== FRIEND SYSTEM ==========
 
   const getFriends = useCallback(async (retryCount = 0) => {
@@ -451,125 +493,82 @@ const getUsers = useCallback(async () => {
     }
   }, [api, authUser]);
 
-  // FIXED: Single, corrected sendFriendRequest function
-// FIXED: Enhanced sendFriendRequest function that checks multiple sources
-const sendFriendRequest = useCallback(async (userId) => {
-  try {
-    console.log('🎯 ChatContext: sendFriendRequest called with userId:', userId);
-    
-    // FIXED: Check multiple sources for the user
-    let userToAdd = null;
-    
-    // 1. First check the regular users list
-    userToAdd = users.find(u => u._id === userId);
-    
-    // 2. If not found, check if we can access search results (this is tricky since it's in Sidebar)
-    if (!userToAdd) {
-      console.log('🔍 User not found in users list, checking other sources...');
-      console.log('📊 Current users list:', users);
-      
-      // Since we can't directly access searchResults from Sidebar here,
-      // we'll try to fetch the user from the API
-      try {
-        console.log('🔄 Attempting to fetch user from API...');
-        const { data } = await api.get(`/api/users/${userId}`);
-        if (data.success) {
-          userToAdd = data.user;
-          console.log('✅ User fetched from API:', userToAdd);
-        }
-      } catch (fetchError) {
-        console.error('❌ Failed to fetch user from API:', fetchError);
-      }
-    }
-
-    if (!userToAdd) {
-      console.error('❌ User not found after all attempts');
-      console.log('🔍 Available users in state:', users.map(u => ({ id: u._id, name: u.fullName })));
-      toast.error("User not found in your contacts");
-      return false;
-    }
-
-    console.log('✅ User found:', userToAdd.fullName, userToAdd._id);
-
-    // Check if already friends
-    const isAlreadyFriend = friends.some(friend => friend._id === userId);
-    if (isAlreadyFriend) {
-      console.log('❌ Already friends with this user');
-      toast.error("You are already friends with this user");
-      return false;
-    }
-
-    // Check if request already sent
-    const hasPendingRequest = sentRequests.some(req => {
-      const toUserId = req.to?._id || req.to;
-      return toUserId === userId && req.status === 'pending';
-    });
-    
-    if (hasPendingRequest) {
-      console.log('❌ Friend request already sent');
-      toast.error("Friend request already sent");
-      return false;
-    }
-
-    // Check if request already received
-    const hasReceivedRequest = friendRequests.some(req => {
-      const fromUserId = req.from?._id || req.from;
-      return fromUserId === userId && req.status === 'pending';
-    });
-
-    if (hasReceivedRequest) {
-      console.log('❌ This user has already sent you a friend request');
-      toast.error("This user has already sent you a friend request");
-      return false;
-    }
-
-    // Check privacy settings
-    if (!canSendFriendRequest(userToAdd)) {
-      console.log('❌ Cannot send friend request due to privacy settings');
-      toast.error("This user is not accepting friend requests");
-      return false;
-    }
-
-    console.log('📤 Sending friend request to:', userId);
-    
-    // Enhanced API call with better error handling
+  const sendFriendRequest = useCallback(async (userId) => {
     try {
-      const { data } = await api.post(`/api/users/friend-request/${userId}`);
+      console.log('🎯 ChatContext: sendFriendRequest called with userId:', userId);
       
-      if (data.success) {
-        console.log('✅ Friend request sent successfully');
-        toast.success("Friend request sent successfully");
-        // Refresh friends data
-        await getFriends();
-        await getUsers();
-        return true;
-      } else {
-        console.log('❌ Backend returned success: false', data.message);
-        toast.error(data.message);
+      // Check if already friends
+      const isAlreadyFriend = friends.some(friend => friend._id === userId);
+      if (isAlreadyFriend) {
+        console.log('❌ Already friends with this user');
+        toast.error("You are already friends with this user");
         return false;
       }
-    } catch (apiError) {
-      console.error("❌ API call failed:", apiError);
-      if (apiError.response) {
-        console.error("❌ Response status:", apiError.response.status);
-        console.error("❌ Response data:", apiError.response.data);
-        if (apiError.response.status === 500) {
-          toast.error("Server error: Please try again later");
-        } else {
-          toast.error(apiError.response.data?.message || "Failed to send friend request");
-        }
-      } else {
-        toast.error("Network error: Please check your connection");
+
+      // Check if request already sent
+      const hasPendingRequest = sentRequests.some(req => {
+        const toUserId = req.to?._id || req.to;
+        return toUserId === userId && req.status === 'pending';
+      });
+      
+      if (hasPendingRequest) {
+        console.log('❌ Friend request already sent');
+        toast.error("Friend request already sent");
+        return false;
       }
+
+      // Check if request already received
+      const hasReceivedRequest = friendRequests.some(req => {
+        const fromUserId = req.from?._id || req.from;
+        return fromUserId === userId && req.status === 'pending';
+      });
+
+      if (hasReceivedRequest) {
+        console.log('❌ This user has already sent you a friend request');
+        toast.error("This user has already sent you a friend request");
+        return false;
+      }
+
+      console.log('📤 Sending friend request to:', userId);
+      
+      // Enhanced API call with better error handling
+      try {
+        const { data } = await api.post(`/api/users/friend-request/${userId}`);
+        
+        if (data.success) {
+          console.log('✅ Friend request sent successfully');
+          toast.success("Friend request sent successfully");
+          // Refresh friends data
+          await getFriends();
+          await getUsers();
+          return true;
+        } else {
+          console.log('❌ Backend returned success: false', data.message);
+          toast.error(data.message);
+          return false;
+        }
+      } catch (apiError) {
+        console.error("❌ API call failed:", apiError);
+        if (apiError.response) {
+          console.error("❌ Response status:", apiError.response.status);
+          console.error("❌ Response data:", apiError.response.data);
+          if (apiError.response.status === 500) {
+            toast.error("Server error: Please try again later");
+          } else {
+            toast.error(apiError.response.data?.message || "Failed to send friend request");
+          }
+        } else {
+          toast.error("Network error: Please check your connection");
+        }
+        return false;
+      }
+    } catch (error) {
+      console.error("❌ Send friend request error:", error);
+      console.error("Error response:", error.response?.data);
+      toast.error(error.response?.data?.message || "Failed to send friend request");
       return false;
     }
-  } catch (error) {
-    console.error("❌ Send friend request error:", error);
-    console.error("Error response:", error.response?.data);
-    toast.error(error.response?.data?.message || "Failed to send friend request");
-    return false;
-  }
-}, [api, getFriends, getUsers, users, friends, sentRequests, friendRequests, canSendFriendRequest]);
+  }, [api, getFriends, getUsers, friends, sentRequests, friendRequests]);
 
   const acceptFriendRequest = useCallback(async (requestId) => {
     try {
@@ -732,7 +731,7 @@ const sendFriendRequest = useCallback(async (userId) => {
           if (socket) {
             socket.emit("leaveGroup", groupId);
           }
-          setSelectedUser(null);
+          setSelectedGroup(null);
         }
         
         toast.success("Member removed successfully");
@@ -750,32 +749,56 @@ const sendFriendRequest = useCallback(async (userId) => {
 
   const leaveGroup = async (groupId) => {
     try {
-      const { data } = await api.post(`/api/groups/${groupId}/leave`);
-      if (data.success) {
-        await getMyGroups();
+      console.log(`🔄 Leaving group: ${groupId}`);
+      
+      const response = await api.post(`/api/groups/${groupId}/leave`);
+      
+      if (response.data.success) {
+        // Remove group from local state
+        setGroups(prev => prev.filter(group => group._id !== groupId));
         
+        // If the current selected group is this group, clear selection
+        if (selectedGroup?._id === groupId) {
+          setSelectedGroup(null);
+        }
+        
+        // Remove group messages from local state
+        setMessages(prev => prev.filter(msg => msg.receiverId !== groupId));
+        
+        // Remove from unseen messages
+        setUnseenMessages(prev => {
+          const newUnseen = { ...prev };
+          delete newUnseen[groupId];
+          return newUnseen;
+        });
+        
+        // Emit socket event
         if (socket) {
-          socket.emit("leaveGroup", groupId);
-          socket.emit("userLeftGroup", {
-            groupId,
-            userId: authUser._id,
-            userName: authUser.fullName
-          });
+          socket.emit('leaveGroup', groupId);
         }
         
-        if (selectedUser?._id === groupId) {
-          setSelectedUser(null);
-        }
-        
-        toast.success("You left the group");
+        toast.success("Successfully left the group");
         return true;
       } else {
-        toast.error(data.message);
-        return false;
+        throw new Error(response.data.message || "Failed to leave group");
       }
     } catch (error) {
-      console.error("Leave group error:", error);
-      toast.error(error.response?.data?.message || "Failed to leave group");
+      console.error("❌ Leave group error:", error);
+      
+      let errorMessage = "Failed to leave group";
+      
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      // Specific handling for admin cannot leave case
+      if (errorMessage.includes('admin cannot leave')) {
+        errorMessage = "Group admin cannot leave. Transfer admin rights first or delete the group.";
+      }
+      
+      toast.error(errorMessage);
       return false;
     }
   };
@@ -793,8 +816,8 @@ const sendFriendRequest = useCallback(async (userId) => {
           });
         }
         
-        if (selectedUser?._id === groupId) {
-          setSelectedUser(data.group);
+        if (selectedGroup?._id === groupId) {
+          setSelectedGroup(data.group);
         }
         
         toast.success("Group updated successfully");
@@ -845,7 +868,7 @@ const sendFriendRequest = useCallback(async (userId) => {
     try {
       setIsLoadingMessages(true);
       
-      const isGroupChat = groups.some(group => group._id === chatId) || selectedUser?.members;
+      const isGroupChat = groups.some(group => group._id === chatId) || selectedGroup;
       const endpoint = isGroupChat 
         ? `/api/groups/${chatId}/messages`
         : `/api/messages/${chatId}`;
@@ -867,7 +890,7 @@ const sendFriendRequest = useCallback(async (userId) => {
         
         console.log(`✅ Loaded ${msgs.length} messages for chat ${chatId}`);
         
-        if (selectedUser?._id === chatId) {
+        if ((selectedUser?._id === chatId || selectedGroup?._id === chatId)) {
           if (page === 1) {
             setMessages(msgs);
             setCachedMessages(chatId, msgs);
@@ -896,11 +919,11 @@ const sendFriendRequest = useCallback(async (userId) => {
         console.log('ℹ️ Message request was cancelled (expected behavior)');
       }
     } finally {
-      if (selectedUser?._id === chatId) {
+      if (selectedUser?._id === chatId || selectedGroup?._id === chatId) {
         setIsLoadingMessages(false);
       }
     }
-  }, [api, authUser, groups, selectedUser, setCachedMessages]);
+  }, [api, authUser, groups, selectedUser, selectedGroup, setCachedMessages]);
 
   const sendMessage = async (messageData) => {
     if (!selectedUser) {
@@ -908,7 +931,7 @@ const sendFriendRequest = useCallback(async (userId) => {
       return;
     }
 
-    if (!selectedUser.members && !canSendMessageToUser(selectedUser)) {
+    if (!canSendMessageToUser(selectedUser)) {
       if (!friends.some(friend => friend._id === selectedUser._id)) {
         toast.error("You can only message friends. Send a friend request first!");
       } else {
@@ -928,7 +951,7 @@ const sendFriendRequest = useCallback(async (userId) => {
       _id: tempId,
       senderId: authUser,
       receiverId: selectedUser._id,
-      receiverType: selectedUser.members ? 'Group' : 'User',
+      receiverType: 'User',
       text: messageData.text || "",
       media: messageData.mediaUrls || [],
       fileType: fileType,
@@ -946,16 +969,7 @@ const sendFriendRequest = useCallback(async (userId) => {
     try {
       let endpoint, postData;
       
-      if (selectedUser.members) {
-        endpoint = `/api/groups/${selectedUser._id}/send`;
-        postData = {
-          text: messageData.text || "",
-          mediaUrls: messageData.mediaUrls || [],
-          fileType: fileType,
-          emojis: messageData.emojis || [],
-          replyTo: messageData.replyTo
-        };
-      } else if (messageData.mediaUrls && messageData.mediaUrls.length > 0) {
+      if (messageData.mediaUrls && messageData.mediaUrls.length > 0) {
         endpoint = `/api/messages/send-media/${selectedUser._id}`;
         postData = {
           text: messageData.text || "",
@@ -996,17 +1010,10 @@ const sendFriendRequest = useCallback(async (userId) => {
         }
         
         if (socket) {
-          if (selectedUser.members) {
-            socket.emit("sendGroupMessage", {
-              ...data.newMessage,
-              tempId: tempId
-            });
-          } else {
-            socket.emit("sendMessage", {
-              ...data.newMessage,
-              tempId: tempId
-            });
-          }
+          socket.emit("sendMessage", {
+            ...data.newMessage,
+            tempId: tempId
+          });
         }
         
         pendingMessagesRef.current.delete(tempId);
@@ -1037,7 +1044,101 @@ const sendFriendRequest = useCallback(async (userId) => {
   };
 
   const sendGroupMessage = async (messageData) => {
-    return sendMessage(messageData);
+    if (!selectedGroup) {
+      toast.error("No group selected");
+      return;
+    }
+
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    let fileType = 'other';
+    if (messageData.mediaUrls && messageData.mediaUrls.length > 0) {
+      fileType = messageData.fileType || 'other';
+    }
+
+    const tempMessage = {
+      _id: tempId,
+      senderId: authUser,
+      receiverId: selectedGroup._id,
+      receiverType: 'Group',
+      text: messageData.text || "",
+      media: messageData.mediaUrls || [],
+      fileType: fileType,
+      emojis: messageData.emojis || [],
+      replyTo: messageData.replyTo,
+      createdAt: new Date(),
+      seen: false,
+      status: "sending",
+      isTemp: true
+    };
+
+    pendingMessagesRef.current.set(tempId, tempMessage);
+    setMessages(prev => [...prev, tempMessage]);
+
+    try {
+      const endpoint = `/api/groups/${selectedGroup._id}/send`;
+      const postData = {
+        text: messageData.text || "",
+        mediaUrls: messageData.mediaUrls || [],
+        fileType: fileType,
+        emojis: messageData.emojis || [],
+        replyTo: messageData.replyTo
+      };
+
+      const { data } = await api.post(endpoint, postData);
+
+      if (data.success) {
+        console.log('✅ Group message sent successfully, server ID:', data.newMessage._id);
+        
+        setMessages(prev =>
+          prev.map(msg =>
+            msg._id === tempId
+              ? { ...data.newMessage, status: "delivered" }
+              : msg
+          )
+        );
+        
+        if (selectedGroup?._id) {
+          const currentMessages = getCachedMessages(selectedGroup._id) || [];
+          const updatedMessages = currentMessages.map(msg => 
+            msg._id === tempId ? { ...data.newMessage, status: "delivered" } : msg
+          ).filter(msg => msg._id !== tempId);
+          updatedMessages.push({ ...data.newMessage, status: "delivered" });
+          setCachedMessages(selectedGroup._id, updatedMessages);
+        }
+        
+        if (socket) {
+          socket.emit("sendGroupMessage", {
+            ...data.newMessage,
+            tempId: tempId
+          });
+        }
+        
+        pendingMessagesRef.current.delete(tempId);
+        
+      } else {
+        throw new Error(data.message);
+      }
+
+    } catch (error) {
+      console.error("Send group message error:", error);
+      
+      if (error.response?.status === 403) {
+        toast.error("You are not allowed to send messages to this group");
+      } else if (error.response?.status === 404) {
+        toast.error("Group not found or no longer available");
+      } else {
+        toast.error(error.response?.data?.message || "Failed to send message");
+      }
+      
+      setMessages(prev =>
+        prev.map(msg =>
+          msg._id === tempId ? { ...msg, status: "failed" } : msg
+        )
+      );
+      
+      pendingMessagesRef.current.delete(tempId);
+    }
   };
 
   const sendVoiceMessage = useCallback(async (audioBlob, receiverId, receiverType = 'User') => {
@@ -1049,6 +1150,7 @@ const sendFriendRequest = useCallback(async (userId) => {
     try {
       toast.loading('Sending voice message...');
 
+      // Convert blob to base64 for upload
       const base64Audio = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(audioBlob);
@@ -1056,9 +1158,11 @@ const sendFriendRequest = useCallback(async (userId) => {
         reader.onerror = reject;
       });
 
+      // Upload audio file
       const uploadRes = await api.post('/api/upload', {
         file: base64Audio,
-        resourceType: 'audio'
+        resourceType: 'audio',
+        filename: `voice-${Date.now()}.webm`
       });
 
       if (uploadRes.data.success) {
@@ -1100,19 +1204,20 @@ const sendFriendRequest = useCallback(async (userId) => {
             socket.emit("messageEdited", {
               messageId,
               text: newText,
-              chatId: selectedUser._id,
+              chatId: selectedUser?._id || selectedGroup?._id,
               receiverType: message.receiverType,
               editedAt: new Date()
             });
           }
         }
         
-        if (selectedUser?._id) {
-          const currentMessages = getCachedMessages(selectedUser._id) || [];
+        const chatId = selectedUser?._id || selectedGroup?._id;
+        if (chatId) {
+          const currentMessages = getCachedMessages(chatId) || [];
           const updatedMessages = currentMessages.map(msg => 
             msg._id === messageId ? { ...msg, text: newText, isEdited: true } : msg
           );
-          setCachedMessages(selectedUser._id, updatedMessages);
+          setCachedMessages(chatId, updatedMessages);
         }
         
         toast.success("Message updated");
@@ -1141,17 +1246,18 @@ const sendFriendRequest = useCallback(async (userId) => {
           if (message) {
             socket.emit("messageDeleted", {
               messageId,
-              chatId: selectedUser._id,
+              chatId: selectedUser?._id || selectedGroup?._id,
               receiverType: message.receiverType,
               deleteForEveryone
             });
           }
         }
         
-        if (selectedUser?._id) {
-          const currentMessages = getCachedMessages(selectedUser._id) || [];
+        const chatId = selectedUser?._id || selectedGroup?._id;
+        if (chatId) {
+          const currentMessages = getCachedMessages(chatId) || [];
           const updatedMessages = currentMessages.filter(msg => msg._id !== messageId);
-          setCachedMessages(selectedUser._id, updatedMessages);
+          setCachedMessages(chatId, updatedMessages);
         }
         
         toast.success(deleteForEveryone ? "Message deleted for everyone" : "Message deleted");
@@ -1189,18 +1295,53 @@ const sendFriendRequest = useCallback(async (userId) => {
             socket.emit("messageReaction", {
               messageId,
               emoji,
-              chatId: selectedUser._id,
+              chatId: selectedUser?._id || selectedGroup?._id,
               receiverType: message.receiverType,
               userId: authUser._id
             });
           }
         }
+        
+        // Optimistic update
+        setMessages(prev => prev.map(msg => {
+          if (msg._id === messageId) {
+            const existingReaction = msg.reactions?.find(r => r.emoji === emoji);
+            
+            if (existingReaction) {
+              return {
+                ...msg,
+                reactions: msg.reactions.map(r =>
+                  r.emoji === emoji
+                    ? {
+                        ...r,
+                        count: r.count + 1,
+                        users: [...(r.users || []), authUser._id]
+                      }
+                    : r
+                )
+              };
+            } else {
+              return {
+                ...msg,
+                reactions: [
+                  ...(msg.reactions || []),
+                  {
+                    emoji,
+                    count: 1,
+                    users: [authUser._id]
+                  }
+                ]
+              };
+            }
+          }
+          return msg;
+        }));
       }
     } catch (error) {
       console.error("React to message error:", error);
       toast.error("Failed to react to message");
     }
-  }, [socket, authUser, messages, selectedUser, api]);
+  }, [socket, authUser, messages, selectedUser, selectedGroup, api]);
 
   const removeReaction = useCallback(async (messageId, emoji) => {
     if (!messageId || !emoji) return;
@@ -1215,18 +1356,42 @@ const sendFriendRequest = useCallback(async (userId) => {
             socket.emit("reactionRemoved", {
               messageId,
               emoji,
-              chatId: selectedUser._id,
+              chatId: selectedUser?._id || selectedGroup?._id,
               receiverType: message.receiverType,
               userId: authUser._id
             });
           }
         }
+        
+        // Optimistic update
+        setMessages(prev => prev.map(msg => {
+          if (msg._id === messageId) {
+            const updatedReactions = msg.reactions
+              ?.map(r => {
+                if (r.emoji === emoji) {
+                  const newCount = r.count - 1;
+                  const newUsers = r.users?.filter(id => id !== authUser._id);
+                  return newCount > 0 
+                    ? { ...r, count: newCount, users: newUsers }
+                    : null;
+                }
+                return r;
+              })
+              .filter(Boolean);
+            
+            return {
+              ...msg,
+              reactions: updatedReactions || []
+            };
+          }
+          return msg;
+        }));
       }
     } catch (error) {
       console.error("Remove reaction error:", error);
       toast.error("Failed to remove reaction");
     }
-  }, [socket, authUser, messages, selectedUser, api]);
+  }, [socket, authUser, messages, selectedUser, selectedGroup, api]);
 
   const markMessagesAsSeen = useCallback(async (chatId) => {
     if (!chatId || !authUser) return;
@@ -1270,7 +1435,8 @@ const sendFriendRequest = useCallback(async (userId) => {
         })
       );
 
-      if (selectedUser?._id === chatId) {
+      const currentChatId = selectedUser?._id || selectedGroup?._id;
+      if (currentChatId === chatId) {
         const currentMessages = getCachedMessages(chatId) || [];
         const updatedMessages = currentMessages.map(msg => ({
           ...msg,
@@ -1300,7 +1466,7 @@ const sendFriendRequest = useCallback(async (userId) => {
     } catch (error) {
       console.error("❌ Mark messages as seen error:", error);
     }
-  }, [authUser, groups, socket, selectedUser, getCachedMessages, setCachedMessages]);
+  }, [authUser, groups, socket, selectedUser, selectedGroup, getCachedMessages, setCachedMessages]);
 
   const forwardMessagesToUser = async (messagesToForward, recipientIds, receiverType = 'User') => {
     if (!messagesToForward.length || !recipientIds.length) {
@@ -1310,7 +1476,7 @@ const sendFriendRequest = useCallback(async (userId) => {
 
     try {
       const { data } = await api.post("/api/messages/forward", {
-        originalMessageId: messagesToForward[0]._id,
+        messageIds: messagesToForward.map(msg => msg._id),
         receiverIds: recipientIds,
         receiverType
       });
@@ -1328,34 +1494,61 @@ const sendFriendRequest = useCallback(async (userId) => {
   };
 
   const sendTypingStatus = useCallback((status) => {
-    if (!socket || !selectedUser) return;
+    if (!socket || (!selectedUser && !selectedGroup)) return;
 
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
 
+    const chatId = selectedUser?._id || selectedGroup?._id;
+    const isGroupChat = !!selectedGroup;
+
     if (status) {
-      socket.emit(isGroup ? "groupTyping" : "typing", {
-        receiverId: selectedUser._id,
-        isTyping: true,
-        userName: authUser?.fullName
-      });
+      if (isGroupChat) {
+        socket.emit("groupTyping", {
+          groupId: chatId,
+          isTyping: true,
+          userName: authUser?.fullName
+        });
+      } else {
+        socket.emit("typing", {
+          receiverId: chatId,
+          isTyping: true,
+          userName: authUser?.fullName
+        });
+      }
 
       typingTimeoutRef.current = setTimeout(() => {
-        socket.emit(isGroup ? "groupTyping" : "typing", {
-          receiverId: selectedUser._id,
+        if (isGroupChat) {
+          socket.emit("groupTyping", {
+            groupId: chatId,
+            isTyping: false,
+            userName: authUser?.fullName
+          });
+        } else {
+          socket.emit("typing", {
+            receiverId: chatId,
+            isTyping: false,
+            userName: authUser?.fullName
+          });
+        }
+      }, 3000);
+    } else {
+      if (isGroupChat) {
+        socket.emit("groupTyping", {
+          groupId: chatId,
           isTyping: false,
           userName: authUser?.fullName
         });
-      }, 3000);
-    } else {
-      socket.emit(isGroup ? "groupTyping" : "typing", {
-        receiverId: selectedUser._id,
-        isTyping: false,
-        userName: authUser?.fullName
-      });
+      } else {
+        socket.emit("typing", {
+          receiverId: chatId,
+          isTyping: false,
+          userName: authUser?.fullName
+        });
+      }
     }
-  }, [socket, selectedUser, isGroup, authUser]);
+  }, [socket, selectedUser, selectedGroup, authUser]);
 
   // ========== PINNED MESSAGES ==========
 
@@ -1395,7 +1588,7 @@ const sendFriendRequest = useCallback(async (userId) => {
     try {
       console.log(`📌 Fetching pinned messages for chat: ${chatId}`);
       
-      const isGroupChat = groups.some(group => group._id === chatId) || selectedUser?.members;
+      const isGroupChat = groups.some(group => group._id === chatId) || selectedGroup;
       
       let endpoint;
       if (isGroupChat) {
@@ -1424,7 +1617,7 @@ const sendFriendRequest = useCallback(async (userId) => {
       setPinnedMessages([]);
       return [];
     }
-  }, [api, groups, selectedUser]);
+  }, [api, groups, selectedGroup]);
 
   // ========== CHAT SETTINGS ==========
 
@@ -1542,7 +1735,7 @@ const sendFriendRequest = useCallback(async (userId) => {
         if (data.success) {
             console.log(`✅ CHAT CLEARED SUCCESS - Cleared ${data.deletedCount} messages for current user only`);
             
-            if (selectedUser?._id === chatId) {
+            if (selectedUser?._id === chatId || selectedGroup?._id === chatId) {
                 setMessages([]);
             }
             
@@ -1560,7 +1753,7 @@ const sendFriendRequest = useCallback(async (userId) => {
         toast.error(error.response?.data?.message || "Failed to clear chat");
         return false;
     }
-  }, [api, authUser, clearCachedMessages, selectedUser]);
+  }, [api, authUser, clearCachedMessages, selectedUser, selectedGroup]);
 
   // ========== BLOCK/UNBLOCK USERS ==========
 
@@ -1677,10 +1870,10 @@ const sendFriendRequest = useCallback(async (userId) => {
 
       const isCurrentChat = selectedUser?._id === newMessage.senderId?._id || 
                            selectedUser?._id === newMessage.receiverId ||
-                           (newMessage.receiverType === 'Group' && selectedUser?._id === newMessage.receiverId);
+                           (newMessage.receiverType === 'Group' && selectedGroup?._id === newMessage.receiverId);
 
       const isForCurrentUser = newMessage.receiverId === authUser._id || 
-                              (newMessage.receiverType === 'Group' && selectedUser?._id === newMessage.receiverId) ||
+                              (newMessage.receiverType === 'Group' && selectedGroup?._id === newMessage.receiverId) ||
                               newMessage.senderId?._id === authUser._id;
 
       if (isCurrentChat || isForCurrentUser) {
@@ -1701,8 +1894,9 @@ const sendFriendRequest = useCallback(async (userId) => {
           console.log('✅ Adding new message to chat');
           const updatedMessages = [...prev, newMessage];
           
-          if (selectedUser?._id) {
-            setCachedMessages(selectedUser._id, updatedMessages);
+          const chatId = selectedUser?._id || selectedGroup?._id;
+          if (chatId) {
+            setCachedMessages(chatId, updatedMessages);
           }
           
           return updatedMessages;
@@ -1725,13 +1919,13 @@ const sendFriendRequest = useCallback(async (userId) => {
     const handleMessageSeen = (data) => {
       setMessages(prev =>
         prev.map(msg =>
-          msg._id === data.messageId && selectedUser?._id === data.chatId
+          msg._id === data.messageId && (selectedUser?._id === data.chatId || selectedGroup?._id === data.chatId)
             ? { ...msg, seen: true, seenBy: data.seenBy, status: "seen" }
             : msg
         )
       );
       
-      if (selectedUser?._id === data.chatId) {
+      if (selectedUser?._id === data.chatId || selectedGroup?._id === data.chatId) {
         const currentMessages = getCachedMessages(data.chatId) || [];
         const updatedMessages = currentMessages.map(msg =>
           msg._id === data.messageId
@@ -1743,82 +1937,116 @@ const sendFriendRequest = useCallback(async (userId) => {
     };
 
     const handleMessageReaction = (data) => {
-      const message = messages.find(msg => msg._id === data.messageId);
-      if (message && (message.receiverId === selectedUser?._id || message.senderId?._id === selectedUser?._id)) {
-        setReactions(prev => ({
-          ...prev,
-          [data.messageId]: [
-            ...(prev[data.messageId] || []).filter(r => r.userId !== data.userId),
-            { userId: data.userId, emoji: data.emoji, reactedAt: data.reactedAt }
-          ]
-        }));
-      }
+      setMessages(prev => prev.map(msg => {
+        if (msg._id === data.messageId) {
+          const existingReaction = msg.reactions?.find(r => r.emoji === data.emoji);
+          
+          if (existingReaction) {
+            return {
+              ...msg,
+              reactions: msg.reactions.map(r =>
+                r.emoji === data.emoji
+                  ? {
+                      ...r,
+                      count: r.count + 1,
+                      users: [...(r.users || []), data.userId]
+                    }
+                  : r
+              )
+            };
+          } else {
+            return {
+              ...msg,
+              reactions: [
+                ...(msg.reactions || []),
+                {
+                  emoji: data.emoji,
+                  count: 1,
+                  users: [data.userId]
+                }
+              ]
+            };
+          }
+        }
+        return msg;
+      }));
     };
 
     const handleReactionRemoved = (data) => {
-      const message = messages.find(msg => msg._id === data.messageId);
-      if (message && (message.receiverId === selectedUser?._id || message.senderId?._id === selectedUser?._id)) {
-        setReactions(prev => ({
-          ...prev,
-          [data.messageId]: (prev[data.messageId] || []).filter(r => r.userId !== data.userId)
-        }));
-      }
+      setMessages(prev => prev.map(msg => {
+        if (msg._id === data.messageId) {
+          const updatedReactions = msg.reactions
+            ?.map(r => {
+              if (r.emoji === data.emoji) {
+                const newCount = r.count - 1;
+                const newUsers = r.users?.filter(id => id !== data.userId);
+                return newCount > 0 
+                  ? { ...r, count: newCount, users: newUsers }
+                  : null;
+              }
+              return r;
+            })
+            .filter(Boolean);
+          
+          return {
+            ...msg,
+            reactions: updatedReactions || []
+          };
+        }
+        return msg;
+      }));
     };
 
     const handleMessageEdited = (data) => {
-      const message = messages.find(msg => msg._id === data.messageId);
-      if (message && (message.receiverId === selectedUser?._id || message.senderId?._id === selectedUser?._id)) {
-        setMessages(prev =>
-          prev.map(msg =>
-            msg._id === data.messageId
-              ? { ...msg, text: data.text, isEdited: true, editedAt: data.editedAt }
-              : msg
-          )
+      setMessages(prev =>
+        prev.map(msg =>
+          msg._id === data.messageId
+            ? { ...msg, text: data.text, isEdited: true, editedAt: data.editedAt }
+            : msg
+        )
+      );
+      
+      const chatId = selectedUser?._id || selectedGroup?._id;
+      if (chatId) {
+        const currentMessages = getCachedMessages(chatId) || [];
+        const updatedMessages = currentMessages.map(msg =>
+          msg._id === data.messageId
+            ? { ...msg, text: data.text, isEdited: true, editedAt: data.editedAt }
+            : msg
         );
-        
-        if (selectedUser?._id) {
-          const currentMessages = getCachedMessages(selectedUser._id) || [];
-          const updatedMessages = currentMessages.map(msg =>
-            msg._id === data.messageId
-              ? { ...msg, text: data.text, isEdited: true, editedAt: data.editedAt }
-              : msg
-          );
-          setCachedMessages(selectedUser._id, updatedMessages);
-        }
+        setCachedMessages(chatId, updatedMessages);
       }
     };
 
     const handleMessageDeleted = (data) => {
-      const message = messages.find(msg => msg._id === data.messageId);
-      if (message && (message.receiverId === selectedUser?._id || message.senderId?._id === selectedUser?._id)) {
-        setMessages(prev => prev.filter(msg => msg._id !== data.messageId));
-        
-        if (selectedUser?._id) {
-          const currentMessages = getCachedMessages(selectedUser._id) || [];
-          const updatedMessages = currentMessages.filter(msg => msg._id !== data.messageId);
-          setCachedMessages(selectedUser._id, updatedMessages);
-        }
+      setMessages(prev => prev.filter(msg => msg._id !== data.messageId));
+      
+      const chatId = selectedUser?._id || selectedGroup?._id;
+      if (chatId) {
+        const currentMessages = getCachedMessages(chatId) || [];
+        const updatedMessages = currentMessages.filter(msg => msg._id !== data.messageId);
+        setCachedMessages(chatId, updatedMessages);
       }
     };
 
     const handleUserJoinedGroup = (data) => {
       getMyGroups();
-      if (selectedUser?._id === data.groupId) {
+      if (selectedGroup?._id === data.groupId) {
         toast.success(`${data.userName || 'A user'} joined the group`);
       }
     };
 
     const handleUserLeftGroup = (data) => {
       getMyGroups();
-      if (selectedUser?._id === data.groupId) {
+      if (selectedGroup?._id === data.groupId) {
         toast.info(`${data.userName || 'A user'} left the group`);
       }
     };
 
     const handleGroupUpdated = (data) => {
       getMyGroups();
-      if (selectedUser?._id === data.group._id) {
-        setSelectedUser(data.group);
+      if (selectedGroup?._id === data.group._id) {
+        setSelectedGroup(data.group);
         toast.success("Group updated successfully");
       }
     };
@@ -1833,14 +2061,15 @@ const sendFriendRequest = useCallback(async (userId) => {
         )
       );
       
-      if (selectedUser?._id) {
-        const currentMessages = getCachedMessages(selectedUser._id) || [];
+      const chatId = selectedUser?._id || selectedGroup?._id;
+      if (chatId) {
+        const currentMessages = getCachedMessages(chatId) || [];
         const updatedMessages = currentMessages.map(msg =>
           msg._id === data.messageId || msg._id === data.tempId
             ? { ...msg, status: "delivered", _id: data.messageId }
             : msg
         );
-        setCachedMessages(selectedUser._id, updatedMessages);
+        setCachedMessages(chatId, updatedMessages);
       }
     };
 
@@ -1864,7 +2093,8 @@ const sendFriendRequest = useCallback(async (userId) => {
     };
 
     const handleGroupTyping = ({ userId, userName, isTyping, groupId }) => {
-      if (selectedUser?._id === groupId) {
+      if (selectedGroup?._id === groupId) {
+        setIsTyping(isTyping);
         if (isTyping) {
           setTypingUsers(prev => ({
             ...prev,
@@ -1904,7 +2134,7 @@ const sendFriendRequest = useCallback(async (userId) => {
         
         console.log(`🗑️ Received chat cleared event:`, data);
         
-        if (selectedUser?._id === chatId && clearedBy !== authUser._id) {
+        if ((selectedUser?._id === chatId || selectedGroup?._id === chatId) && clearedBy !== authUser._id) {
           toast.info(message || `${clearedByName} cleared their chat history`);
           console.log(`ℹ️ ${clearedByName} cleared their chat - your messages remain unchanged`);
         }
@@ -1954,7 +2184,7 @@ const sendFriendRequest = useCallback(async (userId) => {
       socket.off("messageUnpinned", handleMessageUnpinned);
       socket.off('chatCleared', handleChatCleared);
     };
-  }, [socket, selectedUser, authUser, getMyGroups, getFriends, messages, getCachedMessages, setCachedMessages]);
+  }, [socket, selectedUser, selectedGroup, authUser, getMyGroups, getFriends, getCachedMessages, setCachedMessages]);
 
   // ========== OTHER EFFECTS ==========
 
@@ -1966,13 +2196,14 @@ const sendFriendRequest = useCallback(async (userId) => {
       await Promise.all([
         getUsers(),
         getMyGroups(),
-        getFriends()
+        getFriends(),
+        getFavorites()
       ]);
       console.log('✅ Initial data loaded');
     } catch (error) {
       console.error('❌ Error loading initial data:', error);
     }
-  }, [authUser, getUsers, getMyGroups, getFriends]); 
+  }, [authUser, getUsers, getMyGroups, getFriends, getFavorites]); 
 
   useEffect(() => {
     if (authUser) {
@@ -1981,11 +2212,12 @@ const sendFriendRequest = useCallback(async (userId) => {
   }, [authUser]);
 
   useEffect(() => {
-    if (selectedUser?._id !== prevSelectedUserRef.current) {
-      console.log("🔄 Chat switched to:", selectedUser?._id);
+    const currentChatId = selectedUser?._id || selectedGroup?._id;
+    if (currentChatId !== prevSelectedUserRef.current) {
+      console.log("🔄 Chat switched to:", currentChatId);
       
-      if (selectedUser) {
-        const cachedMessages = getCachedMessages(selectedUser._id);
+      if (selectedUser || selectedGroup) {
+        const cachedMessages = getCachedMessages(currentChatId);
         if (cachedMessages && cachedMessages.length > 0) {
           console.log('📦 Loading cached messages:', cachedMessages.length);
           setMessages(cachedMessages);
@@ -1993,7 +2225,7 @@ const sendFriendRequest = useCallback(async (userId) => {
           setMessages([]);
         }
         
-        addToRecentChats(selectedUser);
+        addToRecentChats(selectedUser || selectedGroup);
       } else {
         setMessages([]);
       }
@@ -2008,21 +2240,21 @@ const sendFriendRequest = useCallback(async (userId) => {
         typingTimeoutRef.current = null;
       }
       
-      prevSelectedUserRef.current = selectedUser?._id;
+      prevSelectedUserRef.current = currentChatId;
     }
-  }, [selectedUser?._id, addToRecentChats, getCachedMessages]);
+  }, [selectedUser?._id, selectedGroup?._id, addToRecentChats, getCachedMessages]);
 
   useEffect(() => {
-    if (socket && selectedUser && isGroup) {
-      socket.emit("joinGroup", selectedUser._id);
+    if (socket && selectedGroup) {
+      socket.emit("joinGroup", selectedGroup._id);
     }
 
     return () => {
-      if (socket && selectedUser && isGroup) {
-        socket.emit("leaveGroup", selectedUser._id);
+      if (socket && selectedGroup) {
+        socket.emit("leaveGroup", selectedGroup._id);
       }
     };
-  }, [socket, selectedUser, isGroup]);
+  }, [socket, selectedGroup]);
 
   useEffect(() => {
     return () => {
@@ -2033,14 +2265,14 @@ const sendFriendRequest = useCallback(async (userId) => {
   }, []);
 
   useEffect(() => {
-    if (messages.length === 0 || !selectedUser) return;
+    if (messages.length === 0 || (!selectedUser && !selectedGroup)) return;
 
     const timeoutId = setTimeout(() => {
       extractChatContent(messages);
     }, 500);
 
     return () => clearTimeout(timeoutId);
-  }, [messages.length, selectedUser?._id, extractChatContent]);
+  }, [messages.length, selectedUser?._id, selectedGroup?._id, extractChatContent]);
 
   useEffect(() => {
     getTrendingChats();
@@ -2057,6 +2289,8 @@ const sendFriendRequest = useCallback(async (userId) => {
     trendingChats,
     selectedUser,
     setSelectedUser,
+    selectedGroup,
+    setSelectedGroup,
     unseenMessages,
     setUnseenMessages,
     isTyping,
@@ -2075,6 +2309,7 @@ const sendFriendRequest = useCallback(async (userId) => {
     recentChats,
     pinnedMessages,
     chatSettings,
+    favorites,
     
     // Friend system
     friends,
@@ -2106,6 +2341,11 @@ const sendFriendRequest = useCallback(async (userId) => {
     acceptFriendRequest,
     rejectFriendRequest,
     removeFriend,
+    
+    // Favorites management
+    addFavorite,
+    removeFavorite,
+    getFavorites,
     
     // Message actions
     reactToMessage,
@@ -2158,22 +2398,23 @@ const sendFriendRequest = useCallback(async (userId) => {
     
     // Additional data
     onlineUsers,
-    isGroup: !!isGroup,
+    isGroup: !!selectedGroup,
   }), [
-    messages, users, groups, trendingChats, selectedUser, unseenMessages, isTyping, 
+    messages, users, groups, trendingChats, selectedUser, selectedGroup, unseenMessages, isTyping, 
     typingUsers, reactions, messageReplies, forwardedMessages, pagination, blockedUsers,
     isLoadingMessages, chatMedia, sharedLinks, sharedDocs, sharedLocations, searchHistory,
-    recentChats, pinnedMessages, chatSettings, friends, friendRequests, sentRequests,
+    recentChats, pinnedMessages, chatSettings, favorites, friends, friendRequests, sentRequests,
     canViewUserProfile, canSendMessageToUser, canSendFriendRequest, getUsers, getMyGroups,
     searchUsers, searchUsersByEmail, enhancedSearchUsers, searchGroups, getMessage, sendMessage,
     sendGroupMessage, sendVoiceMessage, markMessagesAsSeen, sendTypingStatus, getFriends,
-    sendFriendRequest, acceptFriendRequest, rejectFriendRequest, removeFriend, reactToMessage,
-    removeReaction, editMessage, deleteMessageById, forwardMessagesToUser, pinMessage, unpinMessage,
-    getPinnedMessages, createGroup, addMemberToGroup, removeMemberFromGroup, leaveGroup,
-    updateGroupInfo, blockUser, unblockUser, addToSearchHistory, clearSearchHistory,
-    addToRecentChats, removeFromRecentChats, clearRecentChats, updateChatSettings, getChatSettings,
-    getFriendsForSidebar, downloadFile, getFileIcon, getFileType, uploadFile, uploadAudio,
-    getCachedMessages, setCachedMessages, clearCachedMessages, clearChatPermanently, onlineUsers, isGroup
+    sendFriendRequest, acceptFriendRequest, rejectFriendRequest, removeFriend, addFavorite,
+    removeFavorite, getFavorites, reactToMessage, removeReaction, editMessage, deleteMessageById, 
+    forwardMessagesToUser, pinMessage, unpinMessage, getPinnedMessages, createGroup, 
+    addMemberToGroup, removeMemberFromGroup, leaveGroup, updateGroupInfo, blockUser, unblockUser, 
+    addToSearchHistory, clearSearchHistory, addToRecentChats, removeFromRecentChats, clearRecentChats, 
+    updateChatSettings, getChatSettings, getFriendsForSidebar, downloadFile, getFileIcon, getFileType, 
+    uploadFile, uploadAudio, getCachedMessages, setCachedMessages, clearCachedMessages, 
+    clearChatPermanently, onlineUsers
   ]);
 
   return (
@@ -2186,3 +2427,5 @@ const sendFriendRequest = useCallback(async (userId) => {
 ChatProvider.propTypes = {
   children: PropTypes.node.isRequired,
 };
+
+export default ChatProvider;

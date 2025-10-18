@@ -1,10 +1,12 @@
+// routes/uploadRoutes.js
 import express from "express";
 import { 
   uploadFile, 
   deleteFile, 
   uploadMultipleFiles, 
   uploadBase64File,
-  getSignature 
+  getSignature,
+  testCloudinaryConfig  // Add this import
 } from "../controllers/uploadController.js";
 import { protectRoute } from "../middleware/auth.js";
 
@@ -21,6 +23,9 @@ router.post("/base64", protectRoute, uploadBase64File);
 
 // Get upload signature for client-side uploads
 router.get("/signature", protectRoute, getSignature);
+
+// Test Cloudinary configuration
+router.get("/config-test", protectRoute, testCloudinaryConfig);
 
 // Delete file
 router.delete("/", protectRoute, deleteFile);

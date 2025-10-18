@@ -51,7 +51,7 @@ export const createGroup = async (req, res) => {
     });
 
     // Populate for response
-    await group.populate('members', 'fullName profilePic username');
+    await group.populate('members', 'fullName profilePic username email');
     await group.populate('admin', 'fullName profilePic username');
 
     // Notify all members about new group
@@ -79,7 +79,7 @@ export const getMyGroups = async (req, res) => {
     const userId = req.user._id;
     
     const groups = await Group.find({ members: userId })
-      .populate("members", "fullName email profilePic username")
+      .populate("members", "fullName email profilePic username lastSeen")
       .populate('admin', 'fullName profilePic username')
       .sort({ updatedAt: -1 });
 
@@ -129,14 +129,14 @@ export const getMyGroups = async (req, res) => {
   }
 };
 
-// Get group details
+// Get group details with enhanced member information
 export const getGroupDetails = async (req, res) => {
   try {
     const { groupId } = req.params;
     const userId = req.user._id;
 
     const group = await Group.findById(groupId)
-      .populate('members', 'fullName profilePic username email bio')
+      .populate('members', 'fullName profilePic username email bio lastSeen')
       .populate('admin', 'fullName profilePic username');
 
     if (!group) {
@@ -168,16 +168,119 @@ export const getGroupDetails = async (req, res) => {
       }))
     );
 
+    // Get group statistics
+    const totalMessages = await Message.countDocuments({
+      receiverId: groupId,
+      receiverType: 'Group',
+      isDeleted: false
+    });
+
+    const mediaCount = await Message.countDocuments({
+      receiverId: groupId,
+      receiverType: 'Group',
+      media: { $exists: true, $ne: [] },
+      isDeleted: false
+    });
+
     res.json({ 
       success: true, 
       group: {
         ...group.toObject(),
         media: allMedia,
-        mediaCount: allMedia.length
+        mediaCount: allMedia.length,
+        totalMessages,
+        statistics: {
+          totalMessages,
+          mediaCount,
+          membersCount: group.members.length
+        }
       }
     });
   } catch (error) {
     console.error("Get group details error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Get all messages in a group with pagination - ADD THIS FUNCTION
+export const getGroupMessages = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { page = 1, limit = 50 } = req.query;
+    const userId = req.user._id;
+
+    const skip = (page - 1) * limit;
+
+    // Validate group exists and user is member
+    const group = await Group.findById(groupId);
+    if (!group) {
+      return res.status(404).json({ success: false, message: "Group not found" });
+    }
+
+    if (!group.members.includes(userId)) {
+      return res.status(403).json({ success: false, message: "You are not a member of this group" });
+    }
+
+    const messages = await Message.find({ 
+      receiverId: groupId, 
+      receiverType: 'Group',
+      isDeleted: false
+    })
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(parseInt(limit))
+    .populate("senderId", "fullName profilePic username")
+    .populate('replyTo', 'text media fileType senderId')
+    .populate('forwardedFrom', 'text media fileType senderId');
+
+    const totalMessages = await Message.countDocuments({
+      receiverId: groupId, 
+      receiverType: 'Group',
+      isDeleted: false
+    });
+
+    // Mark messages as seen by current user
+    await Message.updateMany(
+      { 
+        receiverId: groupId, 
+        receiverType: 'Group',
+        'seenBy.userId': { $ne: userId }
+      },
+      { 
+        $push: { 
+          seenBy: { 
+            userId: userId, 
+            seenAt: new Date() 
+          } 
+        } 
+      }
+    );
+
+    // Reverse to get chronological order
+    messages.reverse();
+
+    res.json({ 
+      success: true, 
+      messages,
+      group: {
+        _id: group._id,
+        name: group.name,
+        image: group.image,
+        description: group.description,
+        admin: group.admin,
+        membersCount: group.members.length,
+        isAdmin: group.admin.toString() === userId.toString()
+      },
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(totalMessages / limit),
+        totalMessages,
+        hasNext: (page * limit) < totalMessages,
+        hasPrev: page > 1
+      }
+    });
+  } catch (error) {
+    console.error("Get group messages error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -276,94 +379,11 @@ export const sendGroupMessage = async (req, res) => {
   }
 };
 
-// Get all messages in a group with pagination
-export const getGroupMessages = async (req, res) => {
-  try {
-    const { groupId } = req.params;
-    const { page = 1, limit = 50 } = req.query;
-    const userId = req.user._id;
-
-    const skip = (page - 1) * limit;
-
-    // Validate group exists and user is member
-    const group = await Group.findById(groupId);
-    if (!group) {
-      return res.status(404).json({ success: false, message: "Group not found" });
-    }
-
-    if (!group.members.includes(userId)) {
-      return res.status(403).json({ success: false, message: "You are not a member of this group" });
-    }
-
-    const messages = await Message.find({ 
-      receiverId: groupId, 
-      receiverType: 'Group',
-      isDeleted: false
-    })
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(parseInt(limit))
-    .populate("senderId", "fullName profilePic username")
-    .populate('replyTo', 'text media fileType senderId')
-    .populate('forwardedFrom', 'text media fileType senderId');
-
-    const totalMessages = await Message.countDocuments({
-      receiverId: groupId, 
-      receiverType: 'Group',
-      isDeleted: false
-    });
-
-    // Mark messages as seen by current user
-    await Message.updateMany(
-      { 
-        receiverId: groupId, 
-        receiverType: 'Group',
-        'seenBy.userId': { $ne: userId }
-      },
-      { 
-        $push: { 
-          seenBy: { 
-            userId: userId, 
-            seenAt: new Date() 
-          } 
-        } 
-      }
-    );
-
-    // Reverse to get chronological order
-    messages.reverse();
-
-    res.json({ 
-      success: true, 
-      messages,
-      group: {
-        _id: group._id,
-        name: group.name,
-        image: group.image,
-        description: group.description,
-        admin: group.admin,
-        membersCount: group.members.length,
-        isAdmin: group.admin.toString() === userId.toString()
-      },
-      pagination: {
-        currentPage: parseInt(page),
-        totalPages: Math.ceil(totalMessages / limit),
-        totalMessages,
-        hasNext: (page * limit) < totalMessages,
-        hasPrev: page > 1
-      }
-    });
-  } catch (error) {
-    console.error("Get group messages error:", error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-// Add member to group
+// Enhanced Add member to group with better validation
 export const addMemberToGroup = async (req, res) => {
   try {
     const { groupId } = req.params;
-    const { memberIds } = req.body; // Now accepts array of member IDs
+    const { memberIds } = req.body;
 
     if (!memberIds || !Array.isArray(memberIds) || memberIds.length === 0) {
       return res.status(400).json({ success: false, message: "Member IDs are required" });
@@ -382,31 +402,44 @@ export const addMemberToGroup = async (req, res) => {
     // Validate users exist and get valid members
     const validMembers = [];
     const existingMembers = [];
+    const invalidMembers = [];
     
     for (const memberId of memberIds) {
       const userToAdd = await User.findById(memberId);
       if (!userToAdd) {
-        continue; // Skip invalid users
+        invalidMembers.push(memberId);
+        continue;
       }
 
       if (group.members.includes(memberId)) {
-        existingMembers.push(userToAdd.fullName);
+        existingMembers.push({
+          _id: userToAdd._id,
+          fullName: userToAdd.fullName
+        });
       } else {
-        validMembers.push(memberId);
+        validMembers.push({
+          _id: userToAdd._id,
+          fullName: userToAdd.fullName,
+          profilePic: userToAdd.profilePic,
+          username: userToAdd.username
+        });
       }
     }
 
     if (validMembers.length === 0) {
       return res.status(400).json({ 
         success: false, 
-        message: existingMembers.length > 0 
-          ? `Users already in group: ${existingMembers.join(', ')}`
-          : "No valid users to add" 
+        message: "No valid users to add",
+        details: {
+          existingMembers: existingMembers.map(m => m.fullName),
+          invalidMembers
+        }
       });
     }
 
     // Add members
-    group.members.push(...validMembers);
+    const memberIdsToAdd = validMembers.map(m => m._id);
+    group.members.push(...memberIdsToAdd);
     await group.save();
 
     // Populate for response
@@ -414,30 +447,42 @@ export const addMemberToGroup = async (req, res) => {
     await group.populate('admin', 'fullName profilePic username');
 
     // Notify new members and existing members
-    const newMembers = await User.find({ _id: { $in: validMembers } });
-    
-    group.members.forEach(memberId => {
-      const socketId = userSocketMap[memberId.toString()];
+    group.members.forEach(member => {
+      const socketId = userSocketMap[member._id.toString()];
       if (socketId) {
         io.to(socketId).emit("groupMembersUpdated", {
           groupId: group._id,
           action: 'added',
-          members: newMembers.map(m => ({ _id: m._id, fullName: m.fullName })),
-          updatedBy: req.user._id
+          members: validMembers,
+          updatedBy: req.user._id,
+          updatedByUser: {
+            _id: req.user._id,
+            fullName: req.user.fullName
+          }
         });
       }
     });
 
-    let message = `${validMembers.length} member(s) added successfully`;
-    if (existingMembers.length > 0) {
-      message += `. Already members: ${existingMembers.join(', ')}`;
-    }
+    // Notify added users
+    validMembers.forEach(member => {
+      const socketId = userSocketMap[member._id.toString()];
+      if (socketId) {
+        io.to(socketId).emit("addedToGroup", {
+          groupId: group._id,
+          groupName: group.name,
+          addedBy: req.user._id,
+          addedByName: req.user.fullName
+        });
+      }
+    });
 
     res.json({ 
       success: true, 
-      message, 
+      message: `${validMembers.length} member(s) added successfully`,
       group,
-      addedMembers: newMembers.map(m => ({ _id: m._id, fullName: m.fullName }))
+      addedMembers: validMembers,
+      existingMembers,
+      invalidMembers
     });
   } catch (error) {
     console.error("Add member error:", error);
@@ -445,7 +490,7 @@ export const addMemberToGroup = async (req, res) => {
   }
 };
 
-// Remove member from group
+// Enhanced Remove member from group
 export const removeMemberFromGroup = async (req, res) => {
   try {
     const { groupId, memberId } = req.params;
@@ -466,7 +511,10 @@ export const removeMemberFromGroup = async (req, res) => {
 
     // Prevent admin from removing themselves
     if (memberId === group.admin.toString() && isSelfRemoval) {
-      return res.status(400).json({ success: false, message: "Group admin cannot remove themselves. Transfer admin rights first." });
+      return res.status(400).json({ 
+        success: false, 
+        message: "Group admin cannot remove themselves. Transfer admin rights first." 
+      });
     }
 
     // Check if member exists in group
@@ -474,7 +522,7 @@ export const removeMemberFromGroup = async (req, res) => {
       return res.status(400).json({ success: false, message: "User is not a member of this group" });
     }
 
-    const removedUser = await User.findById(memberId).select('fullName profilePic');
+    const removedUser = await User.findById(memberId).select('fullName profilePic username');
 
     // Remove member
     group.members = group.members.filter(id => id.toString() !== memberId);
@@ -492,7 +540,12 @@ export const removeMemberFromGroup = async (req, res) => {
           groupId: group._id,
           action: 'removed',
           members: [removedUser],
-          updatedBy: currentUserId
+          updatedBy: currentUserId,
+          updatedByUser: {
+            _id: currentUserId,
+            fullName: req.user.fullName
+          },
+          isSelfRemoval
         });
       }
     });
@@ -503,14 +556,17 @@ export const removeMemberFromGroup = async (req, res) => {
       io.to(removedUserSocketId).emit("removedFromGroup", {
         groupId: group._id,
         groupName: group.name,
-        removedBy: currentUserId
+        removedBy: currentUserId,
+        removedByName: req.user.fullName,
+        isSelfRemoval
       });
     }
 
     res.json({ 
       success: true, 
       message: isSelfRemoval ? "You have left the group" : "Member removed successfully", 
-      group 
+      group,
+      removedMember: removedUser
     });
   } catch (error) {
     console.error("Remove member error:", error);
@@ -518,7 +574,7 @@ export const removeMemberFromGroup = async (req, res) => {
   }
 };
 
-// Leave group - ADDED THIS MISSING EXPORT
+// Leave group
 export const leaveGroup = async (req, res) => {
   try {
     const { groupId } = req.params;
@@ -632,7 +688,11 @@ export const updateGroupInfo = async (req, res) => {
     updatedGroup.members.forEach(member => {
       const socketId = userSocketMap[member._id.toString()];
       if (socketId) {
-        io.to(socketId).emit("groupUpdated", updatedGroup);
+        io.to(socketId).emit("groupUpdated", {
+          group: updatedGroup,
+          updatedBy: currentUserId,
+          updatedByName: req.user.fullName
+        });
       }
     });
 
@@ -678,7 +738,7 @@ export const transferGroupAdmin = async (req, res) => {
       return res.status(400).json({ success: false, message: "You are already the admin" });
     }
 
-    const newAdmin = await User.findById(newAdminId).select('fullName profilePic');
+    const newAdmin = await User.findById(newAdminId).select('fullName profilePic username');
 
     // Transfer admin
     group.admin = newAdminId;
@@ -695,7 +755,11 @@ export const transferGroupAdmin = async (req, res) => {
         io.to(socketId).emit("groupAdminTransferred", {
           groupId: group._id,
           newAdmin: group.admin,
-          previousAdmin: currentUserId
+          previousAdmin: {
+            _id: currentUserId,
+            fullName: req.user.fullName
+          },
+          transferredBy: currentUserId
         });
       }
     });
@@ -711,7 +775,7 @@ export const transferGroupAdmin = async (req, res) => {
   }
 };
 
-// Delete a group
+// Enhanced Delete a group with comprehensive cleanup
 export const deleteGroup = async (req, res) => {
   try {
     const { groupId } = req.params;
@@ -727,23 +791,35 @@ export const deleteGroup = async (req, res) => {
       return res.status(403).json({ success: false, message: "Only group admin can delete the group" });
     }
 
+    // Get all members for notification
+    const members = group.members;
+
     // Soft delete all group messages
-    await Message.updateMany(
+    const deleteResult = await Message.updateMany(
       { 
         receiverId: groupId, 
         receiverType: 'Group' 
       },
-      { $set: { isDeleted: true } }
+      { 
+        $set: { 
+          isDeleted: true,
+          deletedAt: new Date(),
+          deletedBy: currentUserId
+        } 
+      }
     );
 
     // Notify all members before deletion
-    group.members.forEach(memberId => {
+    members.forEach(memberId => {
       const socketId = userSocketMap[memberId.toString()];
       if (socketId) {
         io.to(socketId).emit("groupDeleted", {
           groupId: group._id,
           groupName: group.name,
-          deletedBy: currentUserId
+          deletedBy: currentUserId,
+          deletedByName: req.user.fullName,
+          deletedAt: new Date(),
+          message: `Group "${group.name}" has been deleted by ${req.user.fullName}`
         });
       }
     });
@@ -753,10 +829,56 @@ export const deleteGroup = async (req, res) => {
 
     res.json({ 
       success: true, 
-      message: "Group deleted successfully" 
+      message: "Group deleted successfully",
+      deletedMessages: deleteResult.modifiedCount,
+      deletedGroup: {
+        _id: group._id,
+        name: group.name,
+        membersCount: members.length
+      }
     });
   } catch (error) {
     console.error("Delete group error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Get group members with enhanced information
+export const getGroupMembers = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const userId = req.user._id;
+
+    const group = await Group.findById(groupId)
+      .populate('members', 'fullName profilePic username email lastSeen bio')
+      .populate('admin', 'fullName profilePic username');
+
+    if (!group) {
+      return res.status(404).json({ success: false, message: "Group not found" });
+    }
+
+    if (!group.members.some(member => member._id.toString() === userId.toString())) {
+      return res.status(403).json({ success: false, message: "You are not a member of this group" });
+    }
+
+    // Enhance members with role information
+    const enhancedMembers = group.members.map(member => ({
+      ...member.toObject(),
+      isAdmin: member._id.toString() === group.admin._id.toString(),
+      role: member._id.toString() === group.admin._id.toString() ? 'admin' : 'member',
+      canRemove: member._id.toString() !== group.admin._id.toString() && 
+                 group.admin.toString() === userId.toString()
+    }));
+
+    res.json({ 
+      success: true, 
+      members: enhancedMembers,
+      totalMembers: enhancedMembers.length,
+      admin: group.admin,
+      currentUserRole: group.admin.toString() === userId.toString() ? 'admin' : 'member'
+    });
+  } catch (error) {
+    console.error("Get group members error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };

@@ -1,13 +1,44 @@
+import { v2 as cloudinary } from 'cloudinary';
 import multer from "multer";
-import { v2 as cloudinary } from "cloudinary";
 import stream from "stream";
+import dotenv from 'dotenv';
 
-// Configure Cloudinary
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
+dotenv.config();
+
+// Configure Cloudinary directly in the controller
+const configureCloudinary = () => {
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+  const apiKey = process.env.CLOUDINARY_API_KEY;
+  const apiSecret = process.env.CLOUDINARY_API_SECRET;
+
+  console.log('🔧 Cloudinary Config Check:', {
+    cloudName: cloudName ? `${cloudName.substring(0, 4)}...` : 'MISSING',
+    apiKey: apiKey ? `${apiKey.substring(0, 6)}...` : 'MISSING',
+    apiSecret: apiSecret ? '***' + apiSecret.substring(apiSecret.length - 4) : 'MISSING'
+  });
+
+  if (!cloudName || !apiKey || !apiSecret) {
+    console.error('❌ Missing Cloudinary environment variables');
+    return false;
+  }
+
+  try {
+    cloudinary.config({
+      cloud_name: cloudName,
+      api_key: apiKey,
+      api_secret: apiSecret,
+      secure: true,
+    });
+    console.log('✅ Cloudinary configured successfully');
+    return true;
+  } catch (error) {
+    console.error('🚨 Cloudinary configuration failed:', error.message);
+    return false;
+  }
+};
+
+// Initialize Cloudinary
+configureCloudinary();
 
 // Configure multer for memory storage
 const storage = multer.memoryStorage();
@@ -17,15 +48,14 @@ const upload = multer({
     fileSize: 50 * 1024 * 1024, // 50MB limit
   },
   fileFilter: (req, file, cb) => {
-    // Accept all file types including text files
     const allowedTypes = [
       'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
       'video/mp4', 'video/avi', 'video/mov', 'video/wmv',
       'audio/mpeg', 'audio/wav', 'audio/ogg',
       'application/pdf', 'application/msword', 
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'text/plain', 'text/csv', 'application/json', // Added text files
-      'application/zip', 'application/x-rar-compressed' // Added archives
+      'text/plain', 'text/csv', 'application/json',
+      'application/zip', 'application/x-rar-compressed'
     ];
     
     if (allowedTypes.includes(file.mimetype)) {
@@ -36,23 +66,60 @@ const upload = multer({
   },
 });
 
-// Helper function to upload buffer to Cloudinary - FIXED VERSION
-const uploadToCloudinary = (buffer, resourceType = 'auto') => {
+// Enhanced upload function with better error handling
+const uploadToCloudinary = (buffer, resourceType = 'auto', originalName = 'file') => {
   return new Promise((resolve, reject) => {
+    console.log(`☁️ Starting Cloudinary upload - Type: ${resourceType}, Size: ${buffer.length} bytes`);
+    
     const uploadStream = cloudinary.uploader.upload_stream(
       {
-        resource_type: resourceType, // FIXED: was using undefined variable
+        resource_type: resourceType,
         folder: "chat-app",
+        public_id: originalName.replace(/\.[^/.]+$/, ""),
+        timeout: 60000,
       },
       (error, result) => {
-        if (error) reject(error);
-        else resolve(result);
+        if (error) {
+          console.error('❌ Cloudinary upload stream error:', {
+            message: error.message,
+            http_code: error.http_code,
+            name: error.name
+          });
+          
+          if (error.http_code === 401) {
+            reject(new Error('Cloudinary authentication failed - check your API credentials'));
+          } else if (error.http_code === 400) {
+            reject(new Error('Invalid upload request - file may be corrupted or too large'));
+          } else if (error.message.includes('File size too large')) {
+            reject(new Error('File size exceeds Cloudinary limits'));
+          } else {
+            reject(new Error(`Cloudinary upload failed: ${error.message}`));
+          }
+        } else {
+          console.log('✅ Cloudinary upload successful:', {
+            public_id: result.public_id,
+            format: result.format,
+            bytes: result.bytes,
+            resource_type: result.resource_type
+          });
+          resolve(result);
+        }
       }
     );
     
-    const bufferStream = new stream.PassThrough();
-    bufferStream.end(buffer);
-    bufferStream.pipe(uploadStream);
+    uploadStream.on('error', (streamError) => {
+      console.error('❌ Cloudinary stream error:', streamError);
+      reject(new Error(`Cloudinary stream error: ${streamError.message}`));
+    });
+
+    try {
+      const bufferStream = new stream.PassThrough();
+      bufferStream.end(buffer);
+      bufferStream.pipe(uploadStream);
+    } catch (pipeError) {
+      console.error('❌ Buffer stream pipe error:', pipeError);
+      reject(new Error(`Stream pipe error: ${pipeError.message}`));
+    }
   });
 };
 
@@ -60,22 +127,22 @@ const uploadToCloudinary = (buffer, resourceType = 'auto') => {
 const getResourceType = (mimetype) => {
   if (mimetype.startsWith('image/')) return 'image';
   if (mimetype.startsWith('video/')) return 'video';
-  if (mimetype.startsWith('audio/')) return 'video'; // Cloudinary uses 'video' for audio
-  return 'raw'; // Changed from 'auto' to 'raw' for text files
+  if (mimetype.startsWith('audio/')) return 'video';
+  return 'raw';
 };
 
-// Upload single file - ENHANCED VERSION
+// Enhanced upload controller
 export const uploadFile = async (req, res) => {
   try {
     console.log("📤 Upload request received");
-    
+
     // Use multer middleware
     upload.single('file')(req, res, async (err) => {
       if (err) {
-        console.error("❌ Upload error:", err);
+        console.error("❌ Multer upload error:", err);
         return res.status(400).json({
           success: false,
-          message: err.message || "File upload failed",
+          message: err.message,
           code: 'UPLOAD_ERROR'
         });
       }
@@ -91,7 +158,7 @@ export const uploadFile = async (req, res) => {
       try {
         console.log(`📁 Processing file: ${req.file.originalname}, Type: ${req.file.mimetype}, Size: ${req.file.size} bytes`);
         
-        // Validate file size
+        // Validate file
         if (req.file.size === 0) {
           return res.status(400).json({
             success: false,
@@ -100,11 +167,19 @@ export const uploadFile = async (req, res) => {
           });
         }
 
+        if (!req.file.buffer || req.file.buffer.length === 0) {
+          return res.status(400).json({
+            success: false,
+            message: "File buffer is invalid",
+            code: 'INVALID_BUFFER'
+          });
+        }
+
         // Upload to Cloudinary
         const resourceType = getResourceType(req.file.mimetype);
         console.log(`☁️ Uploading to Cloudinary with resource type: ${resourceType}`);
         
-        const uploadResult = await uploadToCloudinary(req.file.buffer, resourceType);
+        const uploadResult = await uploadToCloudinary(req.file.buffer, resourceType, req.file.originalname);
         
         const fileInfo = {
           public_id: uploadResult.public_id,
@@ -118,7 +193,7 @@ export const uploadFile = async (req, res) => {
           mimetype: req.file.mimetype
         };
 
-        console.log("✅ File uploaded successfully to Cloudinary:", fileInfo);
+        console.log("✅ File uploaded successfully to Cloudinary");
 
         res.json({
           success: true,
@@ -128,19 +203,25 @@ export const uploadFile = async (req, res) => {
       } catch (uploadError) {
         console.error("❌ Cloudinary upload error:", uploadError);
         
-        // More specific error messages
         let errorMessage = "Failed to upload file to cloud storage";
         let errorCode = 'CLOUDINARY_ERROR';
+        let statusCode = 500;
         
-        if (uploadError.message.includes('File size too large')) {
-          errorMessage = "File size exceeds maximum limit";
+        if (uploadError.message.includes('authentication failed')) {
+          errorMessage = "Cloud storage authentication failed - check configuration";
+          errorCode = 'CLOUD_AUTH_ERROR';
+          statusCode = 503;
+        } else if (uploadError.message.includes('File size too large')) {
+          errorMessage = "File size exceeds cloud storage limits";
           errorCode = 'FILE_TOO_LARGE';
-        } else if (uploadError.message.includes('format')) {
-          errorMessage = "Unsupported file format";
-          errorCode = 'UNSUPPORTED_FORMAT';
+          statusCode = 400;
+        } else if (uploadError.message.includes('Invalid upload request')) {
+          errorMessage = "File is corrupted or in invalid format";
+          errorCode = 'INVALID_FILE';
+          statusCode = 400;
         }
         
-        res.status(500).json({
+        res.status(statusCode).json({
           success: false,
           message: errorMessage,
           code: errorCode,
@@ -154,6 +235,34 @@ export const uploadFile = async (req, res) => {
       success: false,
       message: "Internal server error during upload",
       code: 'SERVER_ERROR'
+    });
+  }
+};
+
+// Test endpoint
+export const testCloudinaryConfig = async (req, res) => {
+  try {
+    const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+    const apiKey = process.env.CLOUDINARY_API_KEY;
+    const apiSecret = process.env.CLOUDINARY_API_SECRET;
+
+    const configStatus = {
+      CLOUDINARY_CLOUD_NAME: cloudName ? `✓ Set (${cloudName.substring(0, 4)}...)` : '✗ MISSING',
+      CLOUDINARY_API_KEY: apiKey ? `✓ Set (${apiKey.substring(0, 6)}...)` : '✗ MISSING',
+      CLOUDINARY_API_SECRET: apiSecret ? '✓ Set (***)' : '✗ MISSING',
+      NODE_ENV: process.env.NODE_ENV || 'not set'
+    };
+
+    res.json({
+      success: true,
+      config: configStatus,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Config test failed",
+      error: error.message
     });
   }
 };

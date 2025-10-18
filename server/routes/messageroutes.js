@@ -1,3 +1,4 @@
+// routes/messageRoutes.js
 import express from "express";
 import {
   getUsersForSidebar,
@@ -5,7 +6,7 @@ import {
   markMessageAsSeen,
   sendMessage,
   deleteMessageById,
-  clearChatWithUser,  // Make sure this is imported
+  clearChatWithUser,
   sendMediaMessage,
   forwardMessage,
   addReaction,
@@ -47,7 +48,7 @@ messageRouter.put("/:id/edit", protectRoute, editMessage);
 // Delete single message
 messageRouter.delete("/delete/:id", protectRoute, deleteMessageById);
 
-// CLEAR ENTIRE CHAT (PERMANENT DELETE) - MAKE SURE THIS LINE IS ACTIVE
+// CLEAR ENTIRE CHAT (PERMANENT DELETE)
 messageRouter.delete("/clear/:id", protectRoute, clearChatWithUser);
 
 // Forward message

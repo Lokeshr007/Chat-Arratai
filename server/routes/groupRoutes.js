@@ -11,7 +11,8 @@ import {
   updateGroupInfo,
   transferGroupAdmin,
   searchGroups,
-  leaveGroup
+  leaveGroup,
+  getGroupMembers
 } from "../controllers/groupController.js";
 import { protectRoute } from "../middleware/auth.js";
 
@@ -22,6 +23,7 @@ router.post("/create", protectRoute, createGroup);
 router.get("/", protectRoute, getMyGroups);
 router.get("/search", protectRoute, searchGroups);
 router.get("/:groupId", protectRoute, getGroupDetails);
+router.get("/:groupId/members", protectRoute, getGroupMembers);
 router.put("/:groupId", protectRoute, updateGroupInfo);
 router.delete("/:groupId", protectRoute, deleteGroup);
 
@@ -32,26 +34,9 @@ router.post("/:groupId/send", protectRoute, sendGroupMessage);
 // Member management
 router.post("/:groupId/add", protectRoute, addMemberToGroup);
 router.delete("/:groupId/remove/:memberId", protectRoute, removeMemberFromGroup);
-router.post("/:groupId/leave", protectRoute, leaveGroup);
 
-// For group chats
-router.get('/api/groups/:groupId/pinned-messages', async (req, res) => {
-  try {
-    const { groupId } = req.params;
-    
-    // Mock response - replace with actual database query
-    res.json({
-      success: true,
-      pinnedMessages: [] // Return empty array for now
-    });
-  } catch (error) {
-    console.error('Error fetching group pinned messages:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch pinned messages'
-    });
-  }
-});
+// FIXED: Use POST for leave group instead of DELETE for better compatibility
+router.post("/:groupId/leave", protectRoute, leaveGroup);
 
 // Admin management
 router.put("/:groupId/transfer-admin", protectRoute, transferGroupAdmin);

@@ -124,9 +124,6 @@ router.get('/search/email', protectRoute, async (req, res) => {
   }
 });
 
-// Friend request routes
-router.post("/friend-request/:userId", protectRoute, sendFriendRequest);
-
 // Block/Unblock routes
 router.put("/block/:userId", protectRoute, blockUser);
 router.put("/unblock/:userId", protectRoute, unblockUser);

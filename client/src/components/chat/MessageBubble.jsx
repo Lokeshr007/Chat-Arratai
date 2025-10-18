@@ -26,6 +26,7 @@ const MessageBubble = ({
   theme,
 }) => {
   const isSelected = selectedMessages?.has(message._id);
+const isPinned = localPinnedMessages.some(msg => msg._id === message._id);
 
   return (
     <Box
@@ -44,6 +45,30 @@ const MessageBubble = ({
           </Box>
         </Fade>
       )}
+
+      {isPinned && (
+  <Box
+    sx={{
+      position: 'absolute',
+      top: -8,
+      left: isOwnMessage ? 'auto' : 8,
+      right: isOwnMessage ? 8 : 'auto',
+      background: CHAT_COLORS.primary,
+      borderRadius: '12px',
+      px: 1,
+      py: 0.5,
+      display: 'flex',
+      alignItems: 'center',
+      gap: 0.5,
+      zIndex: 5,
+    }}
+  >
+    <FiMapPin size={10} />
+    <Typography variant="caption" sx={{ fontSize: '0.7rem', fontWeight: 600 }}>
+      Pinned
+    </Typography>
+  </Box>
+)}
 
       <Box sx={{ maxWidth: '85%', minWidth: '120px', position: 'relative', opacity: isSelectMode && !isSelected ? 0.7 : 1 }}>
         {isGroup && !isOwnMessage && (
